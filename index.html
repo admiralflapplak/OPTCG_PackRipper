@@ -304,6 +304,22 @@
                 font-size: 1.1rem;
             }
         }
+        /* --- ULTRA NARROW SCREENS (Single Column) --- */
+        @media (max-width: 480px) {
+            :root {
+                --card-width: 85vw;   /* Big Cards */
+                --card-height: 119vw; 
+            }
+            
+            .cards-area {
+                justify-content: center;
+            }
+
+            /* NEW: Soften the corners when cards are huge */
+            .card, .card-inner, .card-front, .card-back, .card-glare {
+                border-radius: 25px !important; /* Bump up from the default (usually 10-12px) */
+            }
+        }
         /* SMART TOOLTIP STYLES */
         .mobile-tooltip {
             position: fixed !important;

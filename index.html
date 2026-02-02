@@ -185,6 +185,149 @@
         @keyframes fadeOut { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } }
         @keyframes legendary-pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); border-color: #ffd700; } 50% { box-shadow: 0 0 50px 20px rgba(255, 215, 0, 0); border-color: #ffffff; } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); border-color: #ffd700; } }
         .legendary-reveal .card-front { animation: legendary-pulse 1.2s infinite; border: 4px solid #ffd700 !important; z-index: 100; }
+
+        /* CUSTOM STEPPER STYLES */
+        .stepper-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .stepper-btn {
+            background-color: #333;
+            color: var(--primary-accent); /* Gold text */
+            border: 2px solid #555;
+            border-radius: 8px;
+            width: 40px;
+            height: 40px; /* Large touch target */
+            font-size: 1.5rem;
+            line-height: 1;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.1s;
+        }
+        
+        .stepper-btn:active {
+            background-color: #555;
+            transform: scale(0.95);
+        }
+
+        /* Clean up the Input Field */
+        #packCountInput {
+            background: #222;
+            color: white;
+            border: 2px solid #555;
+            padding: 5px;
+            border-radius: 8px;
+            width: 50px;
+            height: 40px; /* Match button height */
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            -moz-appearance: textfield; /* Remove Firefox arrows */
+        }
+        
+        /* Remove native arrows on Chrome/Safari/Edge */
+        #packCountInput::-webkit-inner-spin-button, 
+        #packCountInput::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+
+        /* --- MOBILE OPTIMIZATIONS (Max Width 768px) --- */
+        @media (max-width: 768px) {
+            
+            /* 1. FLUID CARD GRID */
+            /* Fits 2 cards per row on mobile screens */
+            :root {
+                --card-width: 44vw; /* 44% of viewport width */
+                --card-height: 61vw; /* Maintain aspect ratio roughly */
+            }
+            
+            .cards-area {
+                gap: 10px;
+                padding-bottom: 80px; /* Space for fixed buttons if added later */
+            }
+
+            /* 2. SCROLLABLE MENU */
+            /* Turns the multi-line buttons into a tidy scroll ribbon */
+            .menu-bar {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                justify-content: flex-start;
+                width: 100%;
+                padding-bottom: 10px;
+                -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+            }
+            
+            /* Hide scrollbar for cleaner look */
+            .menu-bar::-webkit-scrollbar { display: none; } 
+            
+            .set-btn, .toggle-btn {
+                flex-shrink: 0; /* Prevents buttons from squishing */
+                font-size: 0.85rem;
+                padding: 8px 12px;
+            }
+
+            /* 3. RESPONSIVE PACK AREA */
+            /* Scales the 3D pack down so it fits on narrow screens */
+            .pack-area-wrapper {
+                transform: scale(0.85);
+                margin-top: 0;
+                margin-bottom: 20px;
+            }
+
+            /* 4. COMPACT CONTROLS */
+            .pack-controls {
+                flex-wrap: wrap;
+                gap: 10px;
+                width: 90%;
+            }
+            
+            /* 5. STACKED BINDER CONTROLS */
+            .binder-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .binder-select {
+                width: 100% !important; /* Force full width on phones */
+                margin-bottom: 5px;
+            }
+
+            /* 6. BIGGER TOUCH TARGETS */
+            .action-btn {
+                padding: 12px 20px; /* Fat finger friendly */
+                font-size: 1.1rem;
+            }
+        }
+        /* SMART TOOLTIP STYLES */
+        .mobile-tooltip {
+            position: fixed !important;
+            top: auto !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            width: 100%;
+            max-width: 100%;
+            border-radius: 12px 12px 0 0;
+            border: none;
+            border-top: 2px solid var(--primary-accent);
+            background: rgba(20, 20, 25, 0.98);
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.9);
+            transform: translateY(0);
+            animation: slideUp 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+            z-index: 10000;
+            padding: 20px;
+            padding-bottom: 30px; /* Safe area for swipe bars */
+        }
+        
+        @keyframes slideUp { 
+            from { transform: translateY(100%); } 
+            to { transform: translateY(0); } 
+        }
     </style>
 </head>
 <body>
@@ -199,7 +342,12 @@
         
         <div class="pack-controls">
             <span class="pack-input-label">Packs:</span>
-            <input type="number" id="packCountInput" value="1" min="1" max="24" onchange="updatePackVisuals()">
+            
+            <div class="stepper-wrapper">
+                <button class="stepper-btn" onclick="adjustPackCount(-1)">−</button>
+                <input type="number" id="packCountInput" value="1" min="1" max="24" onchange="updatePackVisuals()">
+                <button class="stepper-btn" onclick="adjustPackCount(1)">+</button>
+            </div>
             
             <label class="switch-label">
                 <input type="checkbox" id="splitToggle" class="switch-input">
@@ -494,17 +642,30 @@
         }
 
         createMenu();
+        // --- 3D PACK MOUSE EVENTS (Desktop Only) ---
         if(packContainer && packTilter) {
-            packContainer.addEventListener('mouseenter', () => { activePackRect = packContainer.getBoundingClientRect(); packTilter.style.transition = 'none'; });
+            packContainer.addEventListener('mouseenter', () => {
+                if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
+                activePackRect = packContainer.getBoundingClientRect();
+                packTilter.style.transition = 'none';
+            });
+            
             packContainer.addEventListener('mousemove', (e) => {
+                if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
                 if(!activePackRect) return;
-                const x = e.clientX - activePackRect.left; const y = e.clientY - activePackRect.top;
-                const xPercent = (x / activePackRect.width) * 100; const yPercent = (y / activePackRect.height) * 100;
-                packTilter.style.setProperty('--pack-x', xPercent); packTilter.style.setProperty('--pack-y', yPercent);
+                const x = e.clientX - activePackRect.left;
+                const y = e.clientY - activePackRect.top;
+                const xPercent = (x / activePackRect.width) * 100;
+                const yPercent = (y / activePackRect.height) * 100;
+                
+                packTilter.style.setProperty('--pack-x', xPercent);
+                packTilter.style.setProperty('--pack-y', yPercent);
+                
                 const rotateX = ((y - activePackRect.height/2) / (activePackRect.height/2)) * -15; 
                 const rotateY = ((x - activePackRect.width/2) / (activePackRect.width/2)) * 15;
                 packTilter.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
             });
+            
             packContainer.addEventListener('mouseleave', () => {
                 packTilter.style.transition = 'transform 0.5s ease-out';
                 packTilter.style.transform = `rotateX(0deg) rotateY(0deg)`;
@@ -513,6 +674,48 @@
         }
         const validIndex = setPools.findIndex(s => !s.error);
         if(validIndex >= 0) selectSet(validIndex); else selectSet(-1);
+
+        // --- GYROSCOPE TILT (Mobile "Juice") ---
+        if (window.DeviceOrientationEvent && 'ontouchstart' in window) {
+            window.addEventListener("deviceorientation", (event) => {
+                
+                // 1. Get Tilt Angles
+                let tiltX = event.gamma; // Left/Right (-90 to 90)
+                let tiltY = event.beta;  // Front/Back  (-180 to 180)
+
+                // 2. Cap the angles so cards don't flip over completely
+                if (tiltX > 30) tiltX = 30;
+                if (tiltX < -30) tiltX = -30;
+                if (tiltY > 40) tiltY = 40;
+                if (tiltY < 0) tiltY = 0; // Only tilt back, not forward (feels more natural)
+
+                // 3. Convert to Percentages (0% - 100%) for the CSS variables
+                // Range: -30 to 30 becomes 0 to 100
+                const xPercent = ((tiltX + 30) / 60) * 100;
+                const yPercent = ((tiltY) / 40) * 100;
+
+                // 4. Apply to ALL visible cards
+                // We use requestAnimationFrame for smooth 60fps performance
+                requestAnimationFrame(() => {
+                    const visibleCards = document.querySelectorAll('.card');
+                    visibleCards.forEach(card => {
+                        const tilter = card.querySelector('.card-tilter');
+                        
+                        // Update CSS Variables for the Glare position
+                        tilter.style.setProperty('--pointer-x', xPercent);
+                        tilter.style.setProperty('--pointer-y', yPercent);
+
+                        // Update 3D Rotation
+                        // X-axis rotation is inverted for natural feel (Tilt phone back = Top of card goes away)
+                        const rotateY = ((xPercent / 100) * 30) - 15; // -15deg to 15deg
+                        const rotateX = ((yPercent / 100) * -30) + 15; 
+
+                        tilter.style.transform = `scale(1.02) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                    });
+                });
+            }, true);
+        }
+
     }
 
     // --- 5. PARSING ---
@@ -658,6 +861,20 @@
         playSound('DROP'); 
         document.getElementById('pack').classList.remove('pack-enter'); void document.getElementById('pack').offsetWidth; document.getElementById('pack').classList.add('pack-enter');
         resetPack();
+    }
+
+    // --- HELPER FOR CUSTOM BUTTONS ---
+    function adjustPackCount(delta) {
+        const input = document.getElementById('packCountInput');
+        let val = parseInt(input.value) || 1;
+        val += delta;
+        
+        // Enforce Limits
+        if (val < 1) val = 1;
+        if (val > 24) val = 24; // Match your max limit
+        
+        input.value = val;
+        updatePackVisuals(); // Refresh the ghost stack immediately
     }
 
     // --- 7. PACK VISUALS ---
@@ -1124,9 +1341,29 @@
         if(backType === 'LEADER') backImg = CARD_BACKS.LEADER;
         if(backType === 'DON') backImg = CARD_BACKS.DON;
 
-        cardDiv.onmouseenter = (e) => { playSound('HOVER'); cardDiv.style.animation = 'none'; activeCardRect = cardDiv.getBoundingClientRect(); tilter.style.transition = 'none'; };
-        cardDiv.onmousemove = (e) => { if(!activeCardRect) return; tiltCard(e, tilter, flipper); if(globalTooltip.style.display === 'block') moveTooltip(e); };
-        cardDiv.onmouseleave = () => { hideTooltip(); resetCard(tilter); activeCardRect = null; };
+        // --- MOUSE TILT EVENTS (Desktop Only) ---
+        cardDiv.onmouseenter = (e) => {
+            if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
+            playSound('HOVER');
+            cardDiv.style.animation = 'none'; 
+            activeCardRect = cardDiv.getBoundingClientRect();
+            tilter.style.transition = 'none';
+        };
+
+        cardDiv.onmousemove = (e) => {
+            if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
+            if(!activeCardRect) return;
+            tiltCard(e, tilter, flipper); 
+            // Tooltip logic handles its own mobile check internally now
+            if(globalTooltip.style.display === 'block') moveTooltip(e);
+        };
+
+        cardDiv.onmouseleave = () => {
+            // We keep this active so if you tap "off" a card, it resets
+            hideTooltip();
+            resetCard(tilter);
+            activeCardRect = null;
+        };
 
         cardDiv.onclick = (e) => {
             if (isBinder) { if(globalTooltip.style.display === 'block') hideTooltip(); else { showTooltip(card); moveTooltip(e); } return; }
@@ -1164,14 +1401,58 @@
         let descText = null;
         if (card.extendedData && card.extendedData.length > 0) {
             card.extendedData.forEach(item => {
-                if (item.name === "Number") return; if (item.name === "Description" || item.name === "Effect") { descText = item.value; } else { const label = item.displayName || item.name; globalTooltip.innerHTML += `<div class="tooltip-row"><span class="tooltip-label">${label}:</span><span class="tooltip-val">${item.value}</span></div>`; }
+                if (item.name === "Number") return; 
+                if (item.name === "Description" || item.name === "Effect") {
+                    descText = item.value;
+                } else {
+                    const label = item.displayName || item.name;
+                    globalTooltip.innerHTML += `<div class="tooltip-row"><span class="tooltip-label">${label}:</span><span class="tooltip-val">${item.value}</span></div>`;
+                }
             });
             if (descText) globalTooltip.innerHTML += `<div class="tooltip-desc-container"><span class="tooltip-desc-title">Description</span><span class="tooltip-desc-text">${descText}</span></div>`;
         } else { globalTooltip.innerHTML += `<div>No Details Found</div>`; }
+        
+        // --- SMART POSITIONING LOGIC ---
+        // 1. Mobile Check: If screen is narrow, dock to bottom
+        if (window.innerWidth <= 768) {
+            globalTooltip.className = 'mobile-tooltip'; // Add mobile class
+            globalTooltip.style.top = '';  // Clear inline styles
+            globalTooltip.style.left = '';
+        } else {
+            // 2. Desktop: Remove mobile class
+            globalTooltip.className = ''; 
+            globalTooltip.id = 'global-tooltip'; // Ensure ID style applies
+        }
+        
         globalTooltip.style.display = 'block';
     }
 
-    function moveTooltip(e) { globalTooltip.style.left = (e.clientX + 15) + 'px'; globalTooltip.style.top = (e.clientY + 15) + 'px'; }
+    function moveTooltip(e) {
+        // If on mobile, do NOT follow mouse (it stays fixed at bottom)
+        if (window.innerWidth <= 768) return;
+
+        const tipW = globalTooltip.offsetWidth;
+        const tipH = globalTooltip.offsetHeight;
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        
+        let x = e.clientX + 15;
+        let y = e.clientY + 15;
+
+        // COLLISION DETECTION
+        // If going off the RIGHT edge, flip to LEFT of cursor
+        if (x + tipW > winW) {
+            x = e.clientX - tipW - 15;
+        }
+
+        // If going off the BOTTOM edge, flip to ABOVE cursor
+        if (y + tipH > winH) {
+            y = e.clientY - tipH - 15;
+        }
+
+        globalTooltip.style.left = x + 'px';
+        globalTooltip.style.top = y + 'px';
+    }
     function hideTooltip() { globalTooltip.style.display = 'none'; }
     function tiltCard(e, tilterDiv, flipperDiv) {
         const x = e.clientX - activeCardRect.left; const y = e.clientY - activeCardRect.top;

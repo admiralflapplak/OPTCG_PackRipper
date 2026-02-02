@@ -370,9 +370,11 @@
             const rObj = extendedData.find(i => i.name === "Rarity");
             if (rObj && rObj.value) rVal = rObj.value.toLowerCase();
         }
+
         const tags = {
             isManga: n.includes("manga") || rVal.includes("manga"),
-            isParallel: n.includes("parallel") || n.includes("(aa)") || rVal.includes("parallel") || rVal.includes("aa"),
+            // UPDATED LINE BELOW: Added "alternate art" and "alt art"
+            isParallel: n.includes("parallel") || n.includes("(aa)") || n.includes("alternate art") || n.includes("alt art") || rVal.includes("parallel") || rVal.includes("aa"),
             isBoxTopper: n.includes("box topper") || n.includes("promotion pack"),
             isSpecial: n.includes("anniversary") || n.includes("special") || n.includes("event") || n.includes("(sp)") || rVal.includes("sp"),
             isSignature: n.includes("signature") || n.includes("stamped"),
@@ -466,6 +468,9 @@
                     }
                     // SAFEGUARD: If card not found in DB (e.g., fetch error), create placeholder so it isn't deleted.
                     if (foundCard) {
+                        // *** ADD THIS LINE ***
+                        foundCard.tags = analyzeTags(foundCard.name, "", foundCard.extendedData);
+                        
                         userCollection[key] = { count: savedItem.count || 1, isNew: savedItem.isNew || false, data: foundCard };
                     } else {
                         console.warn(`Card ${key} not found in database. Creating placeholder.`);

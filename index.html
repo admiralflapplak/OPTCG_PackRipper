@@ -534,7 +534,9 @@
         return tags;
     }
 
+    let isMuted = localStorage.getItem('optcg_muted') === 'true';
     function playSound(key) {
+        if (isMuted) return;
         const url = SOUND_ASSETS[key];
         if (!url) return;
         const audio = new Audio(url);
@@ -781,22 +783,104 @@
     // --- 6. MENU & NAV ---
     function createMenu() {
         menuBar.innerHTML = "";
-        const binderBtn = document.createElement('button'); binderBtn.className = "set-btn"; binderBtn.innerText = "📖 MY BINDER"; binderBtn.style.borderColor = "#e74c3c"; binderBtn.onclick = () => toggleBinder(true); menuBar.appendChild(binderBtn);
-        const sep = document.createElement('span'); sep.innerText = "|"; sep.style.color = "#555"; sep.style.alignSelf = "center"; menuBar.appendChild(sep);
+        
+        // 1. Binder Button
+        const binderBtn = document.createElement('button'); 
+        binderBtn.className = "set-btn"; 
+        binderBtn.innerText = "📖 MY BINDER"; 
+        binderBtn.style.borderColor = "#e74c3c"; 
+        binderBtn.onclick = () => toggleBinder(true); 
+        menuBar.appendChild(binderBtn);
+        
+        // Divider
+        const sep = document.createElement('span'); 
+        sep.innerText = "|"; 
+        sep.style.color = "#555"; 
+        sep.style.alignSelf = "center"; 
+        menuBar.appendChild(sep);
+        
+        // 2. Set Buttons (Loop)
         setPools.forEach((set, index) => {
-            const btn = document.createElement('button'); btn.id = `btn-${index}`; btn.className = "set-btn";
-            if (set.error) { btn.classList.add('retry'); btn.innerText = "Retry " + set.name.split(" ")[0]; btn.onclick = () => retryLoad(index); } 
-            else { btn.innerText = set.name.split(" ")[0]; btn.onclick = () => selectSet(index); }
+            const btn = document.createElement('button'); 
+            btn.id = `btn-${index}`; 
+            btn.className = "set-btn";
+            if (set.error) { 
+                btn.classList.add('retry'); 
+                btn.innerText = "Retry " + set.name.split(" ")[0]; 
+                btn.onclick = () => retryLoad(index); 
+            } else { 
+                btn.innerText = set.name.split(" ")[0]; 
+                btn.onclick = () => selectSet(index); 
+            }
             menuBar.appendChild(btn);
         });
-        const toggleBtn = document.createElement('button'); toggleBtn.className = "toggle-btn"; toggleBtn.innerText = "Hide Text"; toggleBtn.onclick = togglePackText; menuBar.appendChild(toggleBtn);
-        const debugBtn = document.createElement('button'); debugBtn.className = "toggle-btn"; debugBtn.innerText = "🔧 TEST"; debugBtn.style.borderColor = "#2ecc71"; debugBtn.style.color = "#2ecc71"; debugBtn.style.display = "none"; debugBtn.onclick = openDebugPack; menuBar.appendChild(debugBtn);
-        const allBtn = document.createElement('button'); allBtn.className = "set-btn"; allBtn.innerText = "ALL DECKS"; allBtn.style.borderColor = "#ffd700"; allBtn.onclick = () => selectSet(-1); menuBar.appendChild(allBtn);
+
+        // 3. NEW: Mute Button (Added Here)
+        const muteBtn = document.createElement('button');
+        muteBtn.id = "muteBtn";
+        muteBtn.className = "toggle-btn"; // Uses the smaller button style
+        
+        // Set initial state based on memory
+        if (isMuted) {
+            muteBtn.innerText = "🔇 Muted";
+            muteBtn.style.color = "#e74c3c";
+            muteBtn.style.borderColor = "#e74c3c";
+        } else {
+            muteBtn.innerText = "🔊 Sound";
+            muteBtn.style.color = "#2ecc71";
+            muteBtn.style.borderColor = "#2ecc71";
+        }
+        muteBtn.onclick = toggleMute;
+        menuBar.appendChild(muteBtn);
+
+        // 4. Hide Text Button
+        const toggleBtn = document.createElement('button'); 
+        toggleBtn.id = "textToggleBtn";
+        toggleBtn.className = "toggle-btn"; 
+        toggleBtn.innerText = "Hide Text"; 
+        toggleBtn.onclick = togglePackText; 
+        menuBar.appendChild(toggleBtn);
+        
+        // 5. Test/Debug Button
+        const debugBtn = document.createElement('button'); 
+        debugBtn.className = "toggle-btn"; 
+        debugBtn.innerText = "🔧 TEST"; 
+        debugBtn.style.borderColor = "#2ecc71"; 
+        debugBtn.style.color = "#2ecc71"; 
+        debugBtn.style.display = "none"; 
+        debugBtn.onclick = openDebugPack; 
+        menuBar.appendChild(debugBtn);
+        
+        // 6. All Decks Button
+        const allBtn = document.createElement('button'); 
+        allBtn.className = "set-btn"; 
+        allBtn.innerText = "ALL DECKS"; 
+        allBtn.style.borderColor = "#ffd700"; 
+        allBtn.onclick = () => selectSet(-1); 
+        menuBar.appendChild(allBtn);
     }
 
     function togglePackText() {
         showPackText = !showPackText; packInfo.style.opacity = showPackText ? '1' : '0';
-        const btn = document.querySelector('.toggle-btn'); if(btn) btn.innerText = showPackText ? "Hide Text" : "Show Text";
+        const btn = document.getElementById('textToggleBtn'); if(btn) btn.innerText = showPackText ? "Hide Text" : "Show Text";
+    }
+    function toggleMute() {
+        isMuted = !isMuted;
+        localStorage.setItem('optcg_muted', isMuted); // Save preference
+        
+        const btn = document.getElementById('muteBtn');
+        if (btn) {
+            if (isMuted) {
+                btn.innerText = "🔇 Muted";
+                btn.style.color = "#e74c3c";
+                btn.style.borderColor = "#e74c3c";
+            } else {
+                btn.innerText = "🔊 Sound";
+                btn.style.color = "#2ecc71";
+                btn.style.borderColor = "#2ecc71";
+                playSound('HOVER'); // Audio feedback when enabling
+            }
+        }
     }
 
     function selectSet(index) {
@@ -1415,13 +1499,51 @@
         globalTooltip.style.top = y + 'px';
     }
     function hideTooltip() { globalTooltip.style.display = 'none'; }
+    // --- UNIFIED VISUALS HELPER (Fixed Scale & Smooth Glare) ---
+    function updateCardVisuals(tilter, rotateX, rotateY) {
+        if (!tilter) return;
+
+        // 1. Apply Physical Rotation + Scale
+        // CHANGED: Increased scale from 1.02 to 1.1 so it visibly "pops" again
+        tilter.style.transform = `scale(1.1) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+
+        // 2. Calculate Glare (Reflection Logic)
+        const maxAngle = 20; 
+
+        // CHANGED: Removed the "1.5" multiplier. 
+        // Now the glare will hit the edge exactly when the tilt hits the max angle.
+        // No more "sticking" or dead zones.
+        
+        let glareX = 50 + ((rotateY / maxAngle) * 50); 
+        let glareY = 50 - ((rotateX / maxAngle) * 50);
+
+        // Clamp values (0% - 100%)
+        glareX = Math.max(0, Math.min(100, glareX));
+        glareY = Math.max(0, Math.min(100, glareY));
+
+        // 3. Set CSS Variables
+        tilter.style.setProperty('--pointer-x', glareX);
+        tilter.style.setProperty('--pointer-y', glareY);
+    }
+
+    // --- MOUSE TILT FUNCTION ---
     function tiltCard(e, tilterDiv, flipperDiv) {
-        const x = e.clientX - activeCardRect.left; const y = e.clientY - activeCardRect.top;
-        const xPercent = (x / activeCardRect.width) * 100; const yPercent = (y / activeCardRect.height) * 100;
-        tilterDiv.style.setProperty('--pointer-x', xPercent); tilterDiv.style.setProperty('--pointer-y', yPercent);
-        const centerX = activeCardRect.width / 2; const centerY = activeCardRect.height / 2;
-        const rotateX = ((y - centerY) / centerY) * -20; const rotateY = ((x - centerX) / centerX) * 20;
-        tilterDiv.style.transform = `scale(1.1) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        // Safety Check
+        if (!activeCardRect) return;
+
+        // 1. Calculate Mouse Position relative to card center
+        const x = e.clientX - activeCardRect.left; 
+        const y = e.clientY - activeCardRect.top;
+        const centerX = activeCardRect.width / 2; 
+        const centerY = activeCardRect.height / 2;
+
+        // 2. Calculate Angle (Max 20 degrees)
+        // Invert X so moving mouse DOWN tilts card DOWN (negative rotation)
+        const rotateX = ((y - centerY) / centerY) * -20; 
+        const rotateY = ((x - centerX) / centerX) * 20;
+
+        // 3. Hand off to Helper
+        updateCardVisuals(tilterDiv, rotateX, rotateY);
     }
     function resetCard(tilterDiv) { tilterDiv.style.transition = 'transform 0.5s ease-out'; tilterDiv.style.transform = `scale(1) rotateX(0deg) rotateY(0deg)`; }
 
@@ -1447,11 +1569,13 @@
     }
 
     function startGyro() {
-        gyroActive = true;
+        // LOCK OUT MOUSE EVENTS
+        gyroActive = true; 
+
         window.addEventListener("deviceorientation", (event) => {
-            // 1. Get Angles
-            let tiltX = event.gamma; // Left/Right
-            let tiltY = event.beta;  // Front/Back
+            // 1. Get Angles from Phone
+            let tiltX = event.gamma; // Left/Right Tilt (-90 to 90)
+            let tiltY = event.beta;  // Front/Back Tilt (-180 to 180)
 
             // 2. Constraints (Prevent flipping too far)
             if (tiltX > 30) tiltX = 30;
@@ -1459,27 +1583,24 @@
             if (tiltY > 40) tiltY = 40;
             if (tiltY < 0) tiltY = 0;
 
-            // 3. Map to CSS Percentages (0-100)
-            // Gamma (-30 to 30) -> 0 to 100
-            const xPercent = ((tiltX + 30) / 60) * 100;
-            // Beta (0 to 40) -> 0 to 100
-            const yPercent = (tiltY / 40) * 100;
+            // 3. Convert Phone Tilt to Card Rotation Angles
+            // We want the card to rotate roughly -20deg to +20deg based on your hand movement.
+            
+            // Map Left/Right (Gamma) directly to Y-Axis Rotation
+            const rotateY = (tiltX / 30) * 20; 
+
+            // Map Front/Back (Beta) to X-Axis Rotation
+            // We center it around 20 degrees so holding the phone naturally feels "flat"
+            const rotateX = ((tiltY - 20) / 20) * -20; 
 
             // 4. Batch Update DOM
             requestAnimationFrame(() => {
-                // Optimization: Only update cards currently on screen
                 const visibleCards = document.querySelectorAll('.card');
                 visibleCards.forEach(card => {
                     const tilter = card.querySelector('.card-tilter');
                     if(tilter) {
-                        // Move Glare
-                        tilter.style.setProperty('--pointer-x', xPercent);
-                        tilter.style.setProperty('--pointer-y', yPercent);
-
-                        // Rotate Card (Inverted X for natural feel)
-                        const rotateY = ((xPercent / 100) * 30) - 15; 
-                        const rotateX = ((yPercent / 100) * -30) + 15;
-                        tilter.style.transform = `scale(1.02) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                        // Hand off to the Helper Function to calculate Glare & Transform
+                        updateCardVisuals(tilter, rotateX, rotateY);
                     }
                 });
             });

@@ -353,6 +353,8 @@
                 <input type="checkbox" id="splitToggle" class="switch-input">
                 Split Packs
             </label>
+
+            <button id="gyroBtn" class="set-btn" style="display:none; background:#e67e22; border-color:#d35400;" onclick="requestGyro()">Enable Tilt 📱</button>
         </div>
 
         <div class="pack-area-wrapper" id="packWrapper">
@@ -471,6 +473,7 @@
     let activeCardRect = null;
     let activePackRect = null;
     let showPackText = true;
+    let gyroActive = false;
 
     // DOM References
     const packContainer = document.getElementById('pack');
@@ -645,13 +648,13 @@
         // --- 3D PACK MOUSE EVENTS (Desktop Only) ---
         if(packContainer && packTilter) {
             packContainer.addEventListener('mouseenter', () => {
-                if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
+                if (gyroActive) return; // DISABLE ON MOBILE
                 activePackRect = packContainer.getBoundingClientRect();
                 packTilter.style.transition = 'none';
             });
             
             packContainer.addEventListener('mousemove', (e) => {
-                if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
+                if (gyroActive) return; // DISABLE ON MOBILE
                 if(!activePackRect) return;
                 const x = e.clientX - activePackRect.left;
                 const y = e.clientY - activePackRect.top;
@@ -674,48 +677,6 @@
         }
         const validIndex = setPools.findIndex(s => !s.error);
         if(validIndex >= 0) selectSet(validIndex); else selectSet(-1);
-
-        // --- GYROSCOPE TILT (Mobile "Juice") ---
-        if (window.DeviceOrientationEvent && 'ontouchstart' in window) {
-            window.addEventListener("deviceorientation", (event) => {
-                
-                // 1. Get Tilt Angles
-                let tiltX = event.gamma; // Left/Right (-90 to 90)
-                let tiltY = event.beta;  // Front/Back  (-180 to 180)
-
-                // 2. Cap the angles so cards don't flip over completely
-                if (tiltX > 30) tiltX = 30;
-                if (tiltX < -30) tiltX = -30;
-                if (tiltY > 40) tiltY = 40;
-                if (tiltY < 0) tiltY = 0; // Only tilt back, not forward (feels more natural)
-
-                // 3. Convert to Percentages (0% - 100%) for the CSS variables
-                // Range: -30 to 30 becomes 0 to 100
-                const xPercent = ((tiltX + 30) / 60) * 100;
-                const yPercent = ((tiltY) / 40) * 100;
-
-                // 4. Apply to ALL visible cards
-                // We use requestAnimationFrame for smooth 60fps performance
-                requestAnimationFrame(() => {
-                    const visibleCards = document.querySelectorAll('.card');
-                    visibleCards.forEach(card => {
-                        const tilter = card.querySelector('.card-tilter');
-                        
-                        // Update CSS Variables for the Glare position
-                        tilter.style.setProperty('--pointer-x', xPercent);
-                        tilter.style.setProperty('--pointer-y', yPercent);
-
-                        // Update 3D Rotation
-                        // X-axis rotation is inverted for natural feel (Tilt phone back = Top of card goes away)
-                        const rotateY = ((xPercent / 100) * 30) - 15; // -15deg to 15deg
-                        const rotateX = ((yPercent / 100) * -30) + 15; 
-
-                        tilter.style.transform = `scale(1.02) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-                    });
-                });
-            }, true);
-        }
-
     }
 
     // --- 5. PARSING ---
@@ -1343,7 +1304,7 @@
 
         // --- MOUSE TILT EVENTS (Desktop Only) ---
         cardDiv.onmouseenter = (e) => {
-            if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
+            if (gyroActive) return; // DISABLE ON MOBILE
             playSound('HOVER');
             cardDiv.style.animation = 'none'; 
             activeCardRect = cardDiv.getBoundingClientRect();
@@ -1351,7 +1312,7 @@
         };
 
         cardDiv.onmousemove = (e) => {
-            if (window.innerWidth <= 768) return; // DISABLE ON MOBILE
+            if (gyroActive) return; // DISABLE ON MOBILE
             if(!activeCardRect) return;
             tiltCard(e, tilter, flipper); 
             // Tooltip logic handles its own mobile check internally now
@@ -1463,6 +1424,77 @@
         tilterDiv.style.transform = `scale(1.1) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
     }
     function resetCard(tilterDiv) { tilterDiv.style.transition = 'transform 0.5s ease-out'; tilterDiv.style.transform = `scale(1) rotateX(0deg) rotateY(0deg)`; }
+
+    // --- GYROSCOPE PERMISSION & LOGIC ---
+    function requestGyro() {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // iOS 13+ Logic
+            DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        startGyro();
+                        document.getElementById('gyroBtn').style.display = 'none'; // Hide button after success
+                    } else {
+                        alert("Permission denied. Tilt effects disabled.");
+                    }
+                })
+                .catch(console.error);
+        } else {
+            // Android / Non-iOS Logic
+            startGyro();
+            document.getElementById('gyroBtn').style.display = 'none';
+        }
+    }
+
+    function startGyro() {
+        gyroActive = true;
+        window.addEventListener("deviceorientation", (event) => {
+            // 1. Get Angles
+            let tiltX = event.gamma; // Left/Right
+            let tiltY = event.beta;  // Front/Back
+
+            // 2. Constraints (Prevent flipping too far)
+            if (tiltX > 30) tiltX = 30;
+            if (tiltX < -30) tiltX = -30;
+            if (tiltY > 40) tiltY = 40;
+            if (tiltY < 0) tiltY = 0;
+
+            // 3. Map to CSS Percentages (0-100)
+            // Gamma (-30 to 30) -> 0 to 100
+            const xPercent = ((tiltX + 30) / 60) * 100;
+            // Beta (0 to 40) -> 0 to 100
+            const yPercent = (tiltY / 40) * 100;
+
+            // 4. Batch Update DOM
+            requestAnimationFrame(() => {
+                // Optimization: Only update cards currently on screen
+                const visibleCards = document.querySelectorAll('.card');
+                visibleCards.forEach(card => {
+                    const tilter = card.querySelector('.card-tilter');
+                    if(tilter) {
+                        // Move Glare
+                        tilter.style.setProperty('--pointer-x', xPercent);
+                        tilter.style.setProperty('--pointer-y', yPercent);
+
+                        // Rotate Card (Inverted X for natural feel)
+                        const rotateY = ((xPercent / 100) * 30) - 15; 
+                        const rotateX = ((yPercent / 100) * -30) + 15;
+                        tilter.style.transform = `scale(1.02) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                    }
+                });
+            });
+        }, true);
+    }
+
+    // Auto-detect if we need the button
+    // If it's iOS, show the button. If Android, try to start immediately.
+    if (window.DeviceOrientationEvent && 'ontouchstart' in window) {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            document.getElementById('gyroBtn').style.display = 'inline-block'; // Show button for iOS
+        } else {
+            startGyro(); // Try auto-start for Android
+        }
+    }
 
     init();
 </script>

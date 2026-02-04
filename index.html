@@ -6,6 +6,21 @@
     <title>One Piece TCG Pack Ripper v5.2</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rye&display=swap');
+
+        @font-face {
+            font-family: 'OnePiece';  /* We give it a nickname */
+            src: url('OnePiece.ttf');  
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'PirateKing';  /* We give it a nickname */
+            src: url('PirateKing.ttf');  
+            font-weight: normal;
+            font-style: normal;
+        }
+
         :root {
             --bg-color: #1a1a1d;
             --text-color: #ffffff;
@@ -17,9 +32,9 @@
             --save-accent: #3498db; /* Blue */
         }
 
+        /* 1. RESET BODY (Clean slate) */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
             color: var(--text-color);
             display: flex;
             flex-direction: column;
@@ -28,9 +43,73 @@
             margin: 0;
             padding: 20px;
             overflow-x: hidden;
+            background-color: #050505; /* Fallback */
         }
 
-        h1 { color: var(--primary-accent); text-shadow: 2px 2px #000; margin-bottom: 20px; z-index: 10; }
+        /* 2. BACKGROUND CONTAINER (Fixed to viewport) */
+        .background-fx {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -10; /* Send to very back */
+            pointer-events: none; /* Let clicks pass through */
+            
+            /* THE GRADIENT: Night Sky fading into Deep Ocean */
+            background: linear-gradient(
+                to bottom, 
+                #020005 0%,   /* Deep Space (Top) */
+                #0b1023 60%,  /* Horizon Night */
+                #0f2027 100%  /* The Ocean Surface (Bottom) */
+            );
+        }
+
+        /* 3. FOG ANIMATION SHARED STYLES */
+        .fog-layer {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%;
+            background-repeat: repeat-x;
+            background-position: 0 bottom;
+            will-change: background-position;
+        }
+
+        /* LAYER A: SLOW FOG (Far away, taller, transparent) */
+        .fog-slow {
+            height: 40vh; /* Covers bottom 60% of screen */
+            background-image: url("fog.png");
+            background-size: 2000px 100%; /* Stretch it out */
+            opacity: 0.2;
+            animation: fogScroll 120s linear infinite; /* Very slow drift */
+        }
+
+        /* LAYER B: FAST FOG (Close up, shorter, more visible) */
+        .fog-fast {
+            height: 20vh; /* Covers bottom 40% */
+            background-image: url("fog.png");
+            background-size: 1000px 100%; /* Tighter texture */
+            opacity: 0.4;
+            animation: fogScroll 40s linear infinite; /* Faster movement */
+        }
+
+        /* THE ANIMATION LOOP */
+        @keyframes fogScroll {
+            from { background-position-x: 0; }
+            to { background-position-x: 4000px; } /* Must match or exceed background-size width for smooth loop */
+        }
+
+        /* 3. HEADERS & TITLES */
+        h1, .pack-title, .binder-header, .collection-stats {
+            font-family: 'Rye', serif; /* The "Wanted Poster" Look */
+            letter-spacing: 2px;
+            text-shadow: 3px 3px 0px #000;
+        }
+
+        /* Make the Title Gold & Impactful */
+        h1 { 
+            font-size: 2.5rem; 
+            background: linear-gradient(to bottom, #ffd700, #b8860b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
+        }
 
         /* --- MENU BAR --- */
         .menu-bar { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center; z-index: 10; }
@@ -118,7 +197,7 @@
         .card-tilter { width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.1s ease-out; will-change: transform; }
         .card-flipper { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .card-flipper.flipped { transform: rotateY(180deg); }
-        .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.4); background-color: #333; }
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 13px; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.4); background-color: #333; }
         .card-front { z-index: 2; transform: rotateY(0deg); }
         .card-back { transform: rotateY(180deg); background-size: cover; background-position: center; }
 
@@ -151,29 +230,445 @@
         /* FIXED NEW BADGE (Green) */
         .new-badge { position: absolute; top: 8px; right: 8px; background-color: #2ecc71; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.7rem; border: 2px solid white; z-index: 20; box-shadow: 0 0 10px #2ecc71; animation: pulse 1s infinite; }
 
-        /* TOOLTIP */
-        #global-tooltip { position: fixed; display: none; background-color: rgba(20, 20, 25, 0.95); border: 1px solid var(--primary-accent); color: #fff; padding: 12px; border-radius: 8px; z-index: 9999; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8); max-width: 280px; font-size: 0.85rem; line-height: 1.4; }
-        .tooltip-header { font-weight: bold; color: var(--primary-accent); margin-bottom: 8px; border-bottom: 1px solid #444; padding-bottom: 4px; font-size: 1rem; text-align: center; }
-        .tooltip-row { display: flex; justify-content: space-between; margin-bottom: 4px; border-bottom: 1px solid #333; }
-        .tooltip-label { color: #aaa; margin-right: 10px; white-space: nowrap; }
-        .tooltip-val { text-align: right; color: #fff; font-weight: 500; }
-        .tooltip-desc-container { margin-top: 10px; padding-top: 5px; border-top: 1px solid var(--primary-accent); text-align: center; }
-        .tooltip-desc-title { color: var(--primary-accent); font-weight: bold; display: block; margin-bottom: 4px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
-        .tooltip-desc-text { color: #ddd; font-style: italic; font-size: 0.8rem; }
+/* --- RESTRUCTURED TOOLTIP STYLES (Match Reference Image) --- */
 
-        /* RARITY BORDERS & GLARES */
+/* 1. Main Container */
+#cardTooltip {
+    position: fixed;
+    display: none;
+    z-index: 999999;
+    pointer-events: none; /* Crucial for smooth hovering */
+
+    /* The Dark "Pirate UI" Background */
+    background-color: rgba(20, 24, 30, 0.96);
+    border: 2px solid #d4af37; /* A richer gold border */
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    
+    /* Sizing & Spacing */
+    padding: 12px 16px;
+    min-width: 240px;
+    max-width: 300px;
+    
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* 2. Header (Card Name) */
+.tooltip-header {
+    text-align: center;
+    color: #ffd700; /* Bright Gold */
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid rgba(212, 175, 55, 0.3); /* Subtle gold separator */
+    letter-spacing: 0.5px;
+}
+
+/* 3. Data Rows (Flexbox for Left/Right alignment) */
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    /* Subtle separator line between rows */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Remove border from the very last stat row */
+.tooltip-row:last-of-type {
+    border-bottom: none;
+}
+
+/* Left Side: Label */
+.tooltip-label {
+    color: #aaa; /* Muted grey */
+    font-weight: 500;
+    margin-right: 10px;
+}
+
+/* Right Side: Value */
+.tooltip-val {
+    text-align: right;
+    color: #fff; /* Bright white */
+    font-weight: 700;
+}
+
+/* 4. Description Section Container */
+.tooltip-desc-container {
+    margin-top: 15px;
+    padding-top: 10px;
+    text-align: center;
+}
+
+/* The "DESCRIPTION" Title with lines on side */
+.tooltip-desc-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    color: #ffd700; /* Gold */
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+/* The subtle gold lines using pseudo-elements */
+.tooltip-desc-title::before,
+.tooltip-desc-title::after {
+    content: "";
+    flex: 1; /* Takes up remaining space */
+    border-bottom: 1px solid rgba(212, 175, 55, 0.4);
+    margin: 0 10px; /* Spacing between text and line */
+}
+
+/* The Body Text */
+.tooltip-desc-text {
+    color: #e0e0e0; /* Off-white */
+    font-style: italic;
+    font-size: 0.85rem;
+    padding: 0 5px;
+}
+
+        /* RARITY BORDERS */
         .rarity-C .card-front { border: 4px solid #a9a9a9; }
         .rarity-UC .card-front { border: 4px solid #4caf50; }
         .rarity-R .card-front { border: 4px solid #3498db; }
         .rarity-SR .card-front { border: 4px solid #ffd700; box-shadow: 0 0 15px #ffd700; }
         .rarity-SEC .card-front { border: 4px solid #e74c3c; box-shadow: 0 0 20px #e74c3c; }
         .rarity-L .card-front { border: 4px solid #ffd700; }
-        .card-glare { position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 5; opacity: 0; transition: opacity 0.3s; mix-blend-mode: overlay; background-size: 200% 200%; background-position: calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%); pointer-events: none; will-change: background-position; }
+
+        /* --- THE FIXED GLARE SYSTEM --- */
+        .card-glare {
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            will-change: background-position, mask-image;
+
+            /* 1. TEXTURE LAYER */
+            background-image: url("https://www.transparenttextures.com/patterns/stardust.png");
+            background-size: 100px 100px; 
+            
+            /* 2. THE MASK (The "Beam") */
+            /* UPDATED: Tightened the spread. */
+            /* Old: transparent 20% ... transparent 80% (Wide) */
+            /* New: transparent 38% ... transparent 62% (Thin & Sharp) */
+            -webkit-mask-image: linear-gradient(115deg, transparent 38%, black 48%, black 52%, transparent 62%);
+            mask-image: linear-gradient(115deg, transparent 38%, black 48%, black 52%, transparent 62%);
+            
+            -webkit-mask-size: 200% 200%;
+            mask-size: 200% 200%;
+            
+            -webkit-mask-position: calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%);
+            mask-position: calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%);
+            
+            /* 3. BLEND MODE */
+            mix-blend-mode: overlay;
+            background-color: white; 
+        }
+
         .card:hover .card-glare { opacity: 1; }
-        .glare-basic { background-image: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.1) 60%, transparent 80%); }
-        .glare-rare { background-image: linear-gradient(115deg, transparent 20%, rgba(0,191,255,0.2) 40%, rgba(135,206,250,0.6) 50%, rgba(0,191,255,0.2) 60%, transparent 80%); }
-        .glare-super { background-image: linear-gradient(115deg, transparent 25%, rgba(255,0,0,0.3) 40%, rgba(255,215,0,0.5) 45%, rgba(0,255,0,0.3) 50%, rgba(0,0,255,0.3) 55%, transparent 75%); mix-blend-mode: color-dodge; }
-        .glare-secret { background-image: radial-gradient(circle at calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%), rgba(255,215,0,0.4), rgba(255,0,0,0.3), transparent 60%), linear-gradient(125deg, transparent, rgba(255,215,0,0.3), transparent); mix-blend-mode: hard-light; }
+
+        /* --- SPECIFIC RARITIES --- */
+        /* We change the background-color (tint) and the mask (beam shape) */
+
+        /* RARE: Blue Tint */
+        .glare-rare {
+            background-color: #00bfff;
+            mix-blend-mode: screen; /* Brighter */
+        }
+
+        /* SUPER RARE: Rainbow Tint + Diagonal Texture */
+        .glare-super {
+            background-image: url("https://www.transparenttextures.com/patterns/diagonal-striped-brick.png");
+            /* Rainbow Gradient as the COLOR, not the mask */
+            background: 
+                linear-gradient(115deg, transparent 20%, rgba(255,0,0,0.8) 40%, rgba(255,215,0,0.8) 45%, rgba(0,255,0,0.8) 50%, rgba(0,0,255,0.8) 55%, transparent 80%),
+                url("https://www.transparenttextures.com/patterns/diagonal-striped-brick.png");
+            background-blend-mode: overlay; /* Blend rainbow onto texture */
+            
+            /* IMPORTANT: We must re-declare sizes/positions if we use the background shorthand above. */
+            /* But to be safe, let's just use the Mask logic which is cleaner for movement. */
+            
+            /* RE-APPLY MOVEMENT LOGIC explicitly for this class to fix the "Stop Moving" bug */
+            background-size: 200% 200%, 100px 100px;
+            background-position: calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%), 0 0;
+            
+            mix-blend-mode: color-dodge;
+        }
+
+        /* SECRET / MANGA: High-Contrast "Etched" Magma */
+        .glare-secret {
+            /* 1. LAYERS: Texture First (Top), Gradient Second (Bottom) */
+            background-image: 
+                url("https://www.transparenttextures.com/patterns/diagmonds.png"), 
+                linear-gradient(
+                    115deg, 
+                    transparent 20%, 
+                    rgba(139, 0, 0, 0.8) 35%,   /* Dark Red */
+                    rgba(255, 69, 0, 0.9) 40%,  /* Bright Orange */
+                    rgba(255, 215, 0, 1) 45%,   /* Solid Gold */
+                    rgba(255, 255, 255, 1) 50%, /* WHITE HOT */
+                    rgba(255, 215, 0, 1) 55%,   /* Solid Gold */
+                    rgba(255, 69, 0, 0.9) 60%,  /* Bright Orange */
+                    rgba(139, 0, 0, 0.8) 65%,   /* Dark Red */
+                    transparent 80%
+                );
+
+            /* 2. SIZING & POSITIONING (Must match order above!) */
+            /* Texture: Tiled (4px), Fixed Position */
+            /* Gradient: Double Size, Moves with Mouse */
+            background-size: 50px 50px, 200% 200%;
+            background-position: 0 0, calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%);
+
+            /* 3. THE "ETCHING" (Blend the Texture into the Fire) */
+            /* 'multiply' forces the dark lines of the carbon fiber to cut through the brightness */
+            background-blend-mode: multiply; 
+
+            /* 4. FINAL GLOW */
+            mix-blend-mode: plus-lighter;
+            filter: contrast(2.5); /* Boost contrast to pop the texture */
+        }
+
+        /* --- IMPACT SYSTEM --- */
+        /* 1. SCREEN SHAKE (For the big hits) */
+        .shake-screen { animation: shake-screen 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        
+        @keyframes shake-screen {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* 2. VARIABLE FLASH SPEEDS */
+        .flash-anim-fast { animation: flash 0.3s ease-out; }   /* Rare */
+        .flash-anim-med { animation: flash 0.8s ease-out; }    /* SR */
+        .flash-anim-long { animation: flash 2.5s ease-out; }   /* Manga/SEC */
+        
+        /* Ensure the flash overlay is setup correctly */
+        .flash-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: white; opacity: 0; pointer-events: none; z-index: 999; 
+        }
+
+        /* --- WANTED POSTER STYLES --- */
+        .wanted-wrapper {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); /* Darken background */
+            z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s;
+        }
+
+        .wanted-poster {
+            width: 320px;
+            background: #f4dec0; /* Paper Color */
+            background-image: url("https://www.transparenttextures.com/patterns/cream-paper.png");
+            padding: 20px 20px 10px 20px;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(0,0,0,0.9), inset 0 0 40px rgba(139,69,19, 0.3);
+            border: 2px solid #5e4b35;
+            transform: scale(0.8) rotate(-2deg);
+            animation: slamDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+        }
+        
+        /* The "Slam" Animation */
+        @keyframes slamDown {
+            0% { transform: scale(3) rotate(10deg); opacity: 0; }
+            100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+        }
+
+        .wanted-header {
+            font-family: 'Rye', serif;
+            font-size: 3.5rem;
+            line-height: 1;
+            color: #2e1c11;
+            margin-bottom: 5px;
+            letter-spacing: 5px;
+            opacity: 0.9;
+        }
+        
+        .wanted-sub {
+            font-family: 'Rye', serif;
+            font-size: 0.8rem;
+            color: #2e1c11;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        /* 1. The Slot Container */
+        .wanted-image-slot {
+            width: 100%;
+            height: 300px;
+            /* CHANGED: Made transparent so the main poster paper texture shows through */
+            background: transparent; 
+            margin-bottom: 15px;
+            overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            /* Removed inset shadow so the paper looks flat */
+        }
+        
+        /* 2. The "Ink" Image */
+        .wanted-image-slot img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Keep the whole card visible */
+            
+            /* THE "DRAWN" EFFECT: */
+            /* 1. Grayscale it. 2. Crank contrast way up to make it look like black ink. 3. Slight brightness bump to ensure whites are pure white. */
+            filter: grayscale(100%) contrast(250%) brightness(110%) sepia(30%);
+            
+            /* THE BLEND: */
+            /* "Multiply" makes white transparent and dark colors burn into the background paper texture */
+            mix-blend-mode: multiply; 
+            
+            /* Optional: Slight opacity to make it look like old printed ink */
+            opacity: 0.9;
+        }
+
+        .wanted-name {
+            font-family: 'Rye', serif;
+            font-size: 1.8rem;
+            color: #2e1c11;
+            text-transform: uppercase;
+            border-bottom: 2px solid #2e1c11;
+            display: inline-block;
+            padding: 0 20px 5px 20px;
+            margin-bottom: 10px;
+        }
+
+        .wanted-bounty {
+            font-family: 'Rye', serif;
+            font-size: 1.4rem;
+            color: #2e1c11;
+            display: flex; justify-content: flex-start; align-items: center;
+            padding-left: 20px;
+        }
+        
+        .berry-symbol { font-size: 0.8em; margin-right: 10px; opacity: 0.7; }
+        .belly-text { margin-left: auto; font-size: 0.8em; padding-right: 10px;}
+
+        /* --- CARD PREVIEW MODAL --- */
+        .preview-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9); /* Deep focus */
+            z-index: 20000; /* Above everything */
+            display: flex; justify-content: center; align-items: center;
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.2s ease-out;
+            cursor: zoom-out;
+        }
+
+        .preview-content {
+            position: relative;
+            text-align: center;
+            transform: scale(0.8);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* The High-Res Card */
+        .preview-content img {
+            max-height: 80vh; /* Keep it on screen */
+            max-width: 90vw;
+            border-radius: 15px; /* Use your --card-radius variable if you want */
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        .preview-info {
+            margin-top: 15px;
+            color: white;
+            text-shadow: 0 2px 4px black;
+        }
+        
+        .preview-info h2 { margin: 0; font-family: 'Rye', serif; font-size: 2rem; letter-spacing: 2px; }
+        .preview-info p { margin: 5px 0 0 0; font-size: 1.2rem; color: #ffd700; font-weight: bold; }
+
+        @keyframes popIn {
+            to { transform: scale(1); }
+        }
+
+        /* --- LOGO STYLES --- */
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+            cursor: pointer;
+            z-index: 10;
+            
+            /* THE "SHIP ON WATER" ANIMATION */
+            animation: bobbing 4s ease-in-out infinite;
+        }
+
+        .logo-main {
+            font-family: 'PirateKing', 'Rye', serif;
+            font-size: 6rem;
+            line-height: 0.85; /* Squish it slightly for impact */
+            letter-spacing: 0px;
+            padding-left: 10px;
+            padding-right: 10px;
+            padding-top: 30px;
+            
+            /* THE ANIME "RED" GRADIENT */
+            background: linear-gradient(to bottom, #ff5e62, #ff9966);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            
+            /* DEEP SHADOW */
+            filter: drop-shadow(0 5px 0px #2c1a0b);
+        }
+
+        .logo-sub {
+            font-family: 'Rye', serif;
+            font-size: 1.2rem;
+            color: #ffd700; /* Gold */
+            margin-top: 5px;
+            letter-spacing: 4px;
+            text-shadow: 2px 2px 0px #000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0.9;
+        }
+
+        .logo-icon {
+            font-size: 1rem;
+            filter: drop-shadow(0 0 5px gold);
+            animation: spinRock 3s ease-in-out infinite alternate;
+        }
+
+        /* --- ANIMATIONS --- */
+        
+        /* Gently floats up and down like a boat */
+        @keyframes bobbing {
+            0%, 100% { transform: translateY(0) rotate(-1deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+
+        /* Icons rock back and forth */
+        @keyframes spinRock {
+            from { transform: rotate(-15deg); }
+            to { transform: rotate(15deg); }
+        }
+
+        /* --- MOBILE ADJUSTMENT --- */
+        @media (max-width: 768px) {
+            .logo-main { font-size: 2.8rem; }
+            .logo-sub { font-size: 0.9rem; }
+        }
         
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         @keyframes popIn { 0% { transform: scale(0) rotateY(180deg); opacity: 0; } 60% { transform: scale(1.1) rotateY(0deg); opacity: 1; } 100% { transform: scale(1) rotateY(0deg); opacity: 1; } }
@@ -348,11 +843,46 @@
 </head>
 <body>
 
-    <h1>🏴‍☠️ One Piece TCG Pack Ripper</h1>
+    <div class="background-fx">
+        <div class="fog-layer fog-slow"></div>
+        <div class="fog-layer fog-fast"></div>
+    </div>
+
+    <div class="logo-container" onclick="playSound('HOVER')">
+        <div class="logo-main">ONe PIeCE</div>
+        <div class="logo-sub">
+            <span class="logo-icon">⚓</span> PACK RIPPER <span class="logo-icon">⚓</span>
+        </div>
+    </div>
 
     <div class="menu-bar" id="menuBar"></div>
 
     <div class="flash-overlay" id="flashOverlay"></div>
+
+    <div id="cardPreviewOverlay" class="preview-overlay" style="display:none;" onclick="closePreview()">
+        <div class="preview-content">
+            <img id="previewImage" src="" alt="Card Preview">
+            <div class="preview-info">
+                <h2 id="previewTitle">Card Name</h2>
+                <p id="previewPrice">$0.00</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="wantedOverlay" class="wanted-wrapper" style="display:none;" onclick="closeWanted()">
+        <div class="wanted-poster">
+            <div class="wanted-header">WANTED</div>
+            <div class="wanted-sub">DEAD OR ALIVE</div>
+            <div class="wanted-image-slot" id="wantedImageSlot">
+                </div>
+            <div class="wanted-name" id="wantedName">MONKEY.D.LUFFY</div>
+            <div class="wanted-bounty">
+                <span class="berry-symbol">฿</span>
+                <span id="wantedValue">5,000,000,000</span>
+                <span class="belly-text">-</span>
+            </div>
+        </div>
+    </div>
 
     <div id="game-view">
         
@@ -437,10 +967,11 @@
     </div>
 
     <div id="global-tooltip"></div>
+    <div id="cardTooltip" class="tooltip-container" style="display: none;"></div>
 
 <script>
     // --- 1. CONFIGURATION ---
-    const CACHE_VERSION = "v27"; // Bumped for safe save
+    const CACHE_VERSION = "v28"; // Bumped for safe save
 
     // CONFIGURABLE SPEEDS (ms)
     const SPEED = {
@@ -456,7 +987,7 @@
     };
 
     const CARD_BACKS = { GENERIC: "op_back_gen.jpg", LEADER: "op_back_lead.jpg", DON: "op_back_don.jpg" };
-    const PACK_IMAGES = { DEFAULT: "pack_blank.png", OP01: "pack_rd.png", OP02: "pack_pw.png", OP03: "pack_ps.png", OP04: "pack_ki.png", OP05: "pack_ane.png", OP06: "pack_wc.png", OP07: "pack_fyf.png", OP08: "pack_tl.png", OP09: "pack_enw.png", OP10: "pack_rb.png", OP11: "pack_fds.png", OP12: "pack_lm.png", OP13: "pack_chw.png", OP14: "pack_ass.png", EB01: "pack_eb01.png", EB02: "pack_eb02.png", PRB01: "pack_prb1.png", PRB02: "pack_prb2.png" };
+    const PACK_IMAGES = { DEFAULT: "pack_blank.png", OP01: "pack_rd.png", OP02: "pack_pw.png", OP03: "pack_ps.png", OP04: "pack_ki.png", OP05: "pack_ane.png", OP06: "pack_wc.png", OP07: "pack_fyf.png", OP08: "pack_tl.png", OP09: "pack_enw.png", OP10: "pack_rb.png", OP11: "pack_fds.png", OP12: "pack_lm.png", OP13: "pack_chw.png", OP14: "pack_ass.png", EB01: "pack_eb01.png", EB02: "pack_eb02.png", EB03: "pack_eb03.png", PRB01: "pack_prb1.png", PRB02: "pack_prb2.png" };
     const SOUND_ASSETS = { OPEN: "packRip.mp3", FLIP: "cardFlip.mp3", HOVER: "over.mp3", RARE: "reveal.mp3", DEAL: "cardDeal.mp3", DROP: "packDrop.mp3" };
     const DATA_SOURCES = [
         { name: "OP-01 Romance Dawn", url: "https://tcgcsv.com/tcgplayer/68/3188/products" },
@@ -475,6 +1006,7 @@
         { name: "OP-14 The Azure Sea's Seven", url: "https://tcgcsv.com/tcgplayer/68/24537/products" },
         { name: "EB-01 Memorial Collection", url: "https://tcgcsv.com/tcgplayer/68/23333/products" },
         { name: "EB-02 Anime 25th Collection", url: "https://tcgcsv.com/tcgplayer/68/23834/products" },
+        { name: "EB-03 One Piece Heroines Edition", url: "https://tcgcsv.com/tcgplayer/68/24545/products" },
         { name: "PRB-01 One Piece Card The Best", url: "https://tcgcsv.com/tcgplayer/68/23496/products" },
         { name: "PRB-02 One Piece Card The Best vol 2", url: "https://tcgcsv.com/tcgplayer/68/24305/products" }
     ];
@@ -511,7 +1043,7 @@
     const keepBtn = document.getElementById('keepBtn');
     const tossBtn = document.getElementById('tossBtn');
 
-    const globalTooltip = document.getElementById('global-tooltip');
+    // const globalTooltip = document.getElementById('global-tooltip');
     const gameView = document.getElementById('game-view');
     const binderView = document.getElementById('binder-view');
     const binderGrid = document.getElementById('binderGrid');
@@ -538,14 +1070,20 @@
             if (rObj && rObj.value) rVal = rObj.value.toLowerCase();
         }
 
+        // NEW: Check specifically for Gold DONs
+        const isGoldDon = (n.includes("don") && n.includes("gold")) || 
+                          (n.includes("don") && (rVal.includes("special") || rVal.includes("sp")));
+
         const tags = {
             isManga: n.includes("manga") || rVal.includes("manga"),
-            // UPDATED LINE BELOW: Added "alternate art" and "alt art"
             isParallel: n.includes("parallel") || n.includes("(aa)") || n.includes("alternate art") || n.includes("alt art") || rVal.includes("parallel") || rVal.includes("aa"),
             isBoxTopper: n.includes("box topper") || n.includes("promotion pack"),
             isSpecial: n.includes("anniversary") || n.includes("special") || n.includes("event") || n.includes("(sp)") || rVal.includes("sp"),
             isSignature: n.includes("signature") || n.includes("stamped"),
-            isTreasure: rVal.includes("tr")
+            isTreasure: rVal.includes("tr"),
+            
+            // Add our new tag
+            isGoldDon: isGoldDon
         };
         return tags;
     }
@@ -698,20 +1236,49 @@
     }
 
     // --- 5. PARSING ---
+    // --- 5. PARSING (UPDATED: Now fetches Prices too!) ---
     async function fetchAndParse(url, setName, currentSetCode) {
-        const cacheKey = 'optcg_cache_' + CACHE_VERSION + '_' + setName; 
+        const cacheKey = 'optcg_cache_' + CACHE_VERSION + '_' + setName;
         const cached = localStorage.getItem(cacheKey);
+        
+        // If we have valid cached data, return it immediately
         if(cached) return JSON.parse(cached);
 
         let localPool = { common: [], uncommon: [], rare: [], superRare: [], secretRare: [], leader: [], manga: [], altArt: [], boxTopper: [], special: [], treasure: [], don: [] };
         
         try {
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error("Proxy error");
-            const data = await response.json();
-            let rawList = data.results || data.cards || (Array.isArray(data) ? data : []);
+            // 1. CONSTRUCT URLs
+            // We need both the Product list (Images/Names) and the Price list (Market Value)
+            const productsUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const pricesUrlRaw = url.replace('products', 'prices'); // Swap the endpoint
+            const pricesUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(pricesUrlRaw)}`;
 
+            // 2. DUAL FETCH (Get both at the same time)
+            const [prodRes, priceRes] = await Promise.all([
+                fetch(productsUrl),
+                fetch(pricesUrl)
+            ]);
+
+            if (!prodRes.ok) throw new Error("Proxy error on products");
+            // Note: If price fetch fails, we can still continue, but we'll check validity below.
+
+            const prodData = await prodRes.json();
+            const priceData = await priceRes.json(); // This might be empty or fail if API is down, we handle that.
+
+            let rawList = prodData.results || prodData.cards || (Array.isArray(prodData) ? prodData : []);
+
+            // 3. CREATE PRICE MAP
+            // We make a lookup table: { "productId": 0.50 }
+            const priceMap = {};
+            if (priceData && priceData.results) {
+                priceData.results.forEach(p => {
+                    // We prioritize marketPrice -> midPrice -> lowPrice
+                    priceMap[p.productId] = p.marketPrice || p.midPrice || p.lowPrice || 0;
+                });
+            }
+
+            // 4. PROCESS CARDS
+            // Filter out unrelated groups (same logic as before)
             const groupCounts = {}; let dominantGroupId = null; let maxCount = 0;
             rawList.forEach(c => { if (c.groupId) { groupCounts[c.groupId] = (groupCounts[c.groupId] || 0) + 1; if (groupCounts[c.groupId] > maxCount) { maxCount = groupCounts[c.groupId]; dominantGroupId = c.groupId; } } });
 
@@ -725,11 +1292,16 @@
                 const image = rawCard.imageUrl || rawCard.image || "https://placehold.co/200x280?text=No+Image";
                 const extendedData = rawCard.extendedData || []; 
                 let setID = "OTHER"; let displayNumber = id; 
+                
                 const numEntry = extendedData.find(i => i.name === "Number");
                 if(numEntry && numEntry.value) {
                     displayNumber = numEntry.value; const rawPrefix = numEntry.value.split('-')[0];
                     if(ALLOWED_PREFIXES.includes(rawPrefix)) { setID = rawPrefix; } else { setID = 'OTHER'; }
                 }
+
+                // 5. MERGE PRICE (The New Step)
+                // We look up the price using the ID and attach it to our clean card object
+                const marketPrice = priceMap[rawCard.productId] || 0;
 
                 const tags = analyzeTags(name, cleanName, extendedData);
                 let rarityStr = "Common";
@@ -738,8 +1310,11 @@
                 rarityStr = rarityStr.toUpperCase();
 
                 const backType = determineBackType(rarityStr, extendedData);
-                const card = { name, id, displayNumber, image, rarity: rarityStr, extendedData, setID, backType, tags };
+                
+                // Add 'marketPrice' to this object
+                const card = { name, id, displayNumber, image, rarity: rarityStr, extendedData, setID, backType, tags, marketPrice };
 
+                // Sort into pools
                 if (tags.isManga) localPool.manga.push(card);
                 else if (tags.isTreasure) localPool.treasure.push(card);
                 else if (tags.isBoxTopper) localPool.boxTopper.push(card);
@@ -756,9 +1331,14 @@
                     else localPool.common.push(card);
                 }
             });
+
             try { localStorage.setItem(cacheKey, JSON.stringify(localPool)); } catch(e) {}
             return localPool;
-        } catch (err) { return { error: true }; }
+
+        } catch (err) { 
+            console.error("Fetch Error:", err);
+            return { error: true }; 
+        }
     }
 
     async function retryLoad(index) {
@@ -1351,18 +1931,139 @@
         });
     }
 
-    function triggerExplosion(x, y) {
-        const colors = ['#FFD700', '#FFA500', '#FF4500', '#FFFFFF', '#00BFFF'];
-        for (let i = 0; i < 40; i++) {
+    function triggerExplosion(x, y, customColors, particleCount) {
+        const colors = customColors || ['#FFD700', '#FFA500', '#FF4500', '#FFFFFF', '#00BFFF'];
+        const count = particleCount || 40;
+
+        for (let i = 0; i < count; i++) {
             const p = document.createElement('div');
             p.classList.add('particle');
             p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            p.style.left = x + 'px'; p.style.top = y + 'px';
-            const angle = Math.random() * Math.PI * 2; const velocity = 50 + Math.random() * 150; 
-            const tx = Math.cos(angle) * velocity + 'px'; const ty = Math.sin(angle) * velocity + 'px';
-            p.style.setProperty('--tx', tx); p.style.setProperty('--ty', ty);
-            document.body.appendChild(p); setTimeout(() => p.remove(), 1000);
+            
+            // FIX: Center the particle (8px wide -> subtract 4px)
+            // This aligns the CENTER of the particle with your X/Y coordinates
+            p.style.left = (x - 4) + 'px'; 
+            p.style.top = (y - 4) + 'px';
+            
+            const velocity = 50 + Math.random() * (count * 4); 
+            const angle = Math.random() * Math.PI * 2; 
+            
+            const tx = Math.cos(angle) * velocity + 'px'; 
+            const ty = Math.sin(angle) * velocity + 'px';
+            
+            p.style.setProperty('--tx', tx); 
+            p.style.setProperty('--ty', ty);
+            
+            const scale = 0.5 + Math.random();
+            p.style.transform = `scale(${scale})`;
+
+            document.body.appendChild(p); 
+            setTimeout(() => p.remove(), 1000);
         }
+    }
+
+    // --- IMPACT ENGINE (Fixed Positioning Bug) ---
+    function triggerImpact(card, x, y) {
+        if (!card) return;
+
+        // 1. DETERMINE TIER
+        let tier = 0;
+        const r = card.rarity.toUpperCase();
+        const t = card.tags || {};
+
+        if (r.includes('RARE') || r === 'R') tier = 1;
+        if (r.includes('SUPER') || r === 'SR' || t.isParallel) tier = 2;
+        if (r.includes('LEADER') || r === 'L' || r.includes('SECRET') || r === 'SEC') tier = 3;
+        if (t.isManga || t.isTreasure || t.isSpecial) tier = 4;
+
+        if (tier === 0) return; 
+
+        // 2. EXECUTE EFFECTS
+        // We shake 'game-view' instead of 'document.body' to preserve particle coordinates
+
+        // --- LEVEL 1: RARE ---
+        if (tier === 1) {
+            triggerExplosion(x, y, ['#00BFFF', '#ffffff'], 20); 
+            triggerFlash('flash-anim-fast'); 
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        // --- LEVEL 2: SUPER RARE ---
+        else if (tier === 2) {
+            triggerExplosion(x, y, ['#FFD700', '#FFA500', '#ffffff'], 50); 
+            triggerFlash('flash-anim-med');
+            playSound('RARE'); 
+            if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+        }
+
+        // --- LEVEL 3: SECRET / LEADER ---
+        else if (tier === 3) {
+            triggerExplosion(x, y, ['#FF0000', '#FFD700', '#000000'], 100); 
+            triggerFlash('flash-anim-med');
+            
+            // FIX: Shake the VIEW, not the BODY
+            const view = document.getElementById('game-view');
+            view.classList.add('shake-screen'); 
+            setTimeout(() => view.classList.remove('shake-screen'), 500);
+            
+            playSound('RARE');
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        }
+
+        // --- LEVEL 4: MANGA / GOD (The "WANTED" Slam) ---
+        else if (tier === 4) {
+            triggerExplosion(x, y, ['#FFFFFF', '#FFD700', '#00FFFF', '#FF00FF'], 200); 
+            triggerFlash('flash-anim-long'); 
+            
+            // 1. Shake Screen
+            const view = document.getElementById('game-view');
+            view.classList.add('shake-screen');
+            setTimeout(() => {
+                view.classList.remove('shake-screen');
+                void view.offsetWidth; 
+                view.classList.add('shake-screen');
+            }, 500);
+            
+            playSound('RARE'); 
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 500]);
+
+            // 2. TRIGGER WANTED POSTER (Delay slightly for the flash)
+            setTimeout(() => {
+                showWantedPoster(card);
+            }, 400);
+        }
+    }
+
+    // Helper: Variable Flash
+    function triggerFlash(animClass) {
+        const flash = document.getElementById('flashOverlay');
+        flash.className = 'flash-overlay'; // Reset
+        void flash.offsetWidth; // Reflow
+        flash.classList.add(animClass);
+    }
+
+    function showWantedPoster(card) {
+        const overlay = document.getElementById('wantedOverlay');
+        const imgSlot = document.getElementById('wantedImageSlot');
+        const nameSlot = document.getElementById('wantedName');
+        const valSlot = document.getElementById('wantedValue');
+
+        // Set Data
+        imgSlot.innerHTML = `<img src="${card.image}">`;
+        nameSlot.innerText = card.name;
+        
+        // Generate a random "Bounty" based on rarity
+        // 1-4 Billion Berries
+        const randomBounty = Math.floor(Math.random() * (4000 - 1000) + 1000); 
+        valSlot.innerText = randomBounty + ",000,000";
+
+        // Show
+        overlay.style.display = 'flex';
+        playSound('DROP'); // Or a heavy slam sound if you have one
+    }
+
+    function closeWanted() {
+        document.getElementById('wantedOverlay').style.display = 'none';
     }
 
     function createCardHTML(card, container, isPackOpening, quantity = 1, isNew = false, startFlipped = false, isBinder = false) {
@@ -1371,6 +2072,7 @@
         let rarityClass = 'rarity-C'; let glareClass = 'glare-basic'; const r = card.rarity.toUpperCase();
         let isHit = false; let isGodPull = false; 
 
+        // --- RARITY & GLARE LOGIC ---
         if (r === 'UC' || r.includes('UNCOMMON')) { rarityClass = 'rarity-UC'; }
         else if (r === 'SR' || r.includes('SUPER')) { rarityClass = 'rarity-SR'; glareClass = 'glare-super'; isHit = true; }
         else if (r === 'SEC' || r.includes('SECRET')) { rarityClass = 'rarity-SEC'; glareClass = 'glare-secret'; isHit = true; }
@@ -1379,13 +2081,22 @@
         else if (r === 'TR' || r === 'SPECIAL') { rarityClass = 'rarity-SEC'; glareClass = 'glare-secret'; isHit = true; }
 
         if (card.tags) {
-            if (card.tags.isManga) { rarityClass = 'rarity-SEC'; isGodPull = true; isHit = true; }
-            if (card.tags.isTreasure) { rarityClass = 'rarity-SEC'; isGodPull = true; isHit = true; }
+            if (card.tags.isManga) { rarityClass = 'rarity-SEC'; glareClass = 'glare-secret'; isGodPull = true; isHit = true; }
+            if (card.tags.isTreasure) { rarityClass = 'rarity-SEC'; glareClass = 'glare-secret'; isGodPull = true; isHit = true; }
             if (card.tags.isSpecial) { isGodPull = true; isHit = true; }
             if (card.tags.isSignature) { isGodPull = true; isHit = true; }
-            if (card.tags.isParallel) { isGodPull = true; isHit = true; } 
+            if (card.tags.isParallel) { isGodPull = true; isHit = true; }
+            
+            // Gold Don Logic
+            if (card.tags.isGoldDon) {
+                rarityClass = 'rarity-SR';   
+                glareClass = 'glare-secret'; 
+                isGodPull = true;            
+                isHit = true;
+            }
         }
 
+        // --- BUILD CARD CONTAINER ---
         cardDiv.className = `card ${rarityClass}`;
         if(isGodPull) cardDiv.classList.add('god-pull-flag'); 
         cardDiv.dataset.isHit = isHit; 
@@ -1396,54 +2107,102 @@
         if (startFlipped) flipper.classList.add('flipped');
         if(isPackOpening) { cardDiv.style.animation = 'popIn 0.5s ease-out forwards'; }
 
+        // --- BACK IMAGE LOGIC ---
         let backType = card.backType;
         if (!backType || backType === "GENERIC" || backType === "undefined") { backType = determineBackType(card.rarity, card.extendedData); }
         let backImg = CARD_BACKS.GENERIC;
         if(backType === 'LEADER') backImg = CARD_BACKS.LEADER;
         if(backType === 'DON') backImg = CARD_BACKS.DON;
 
-        // --- MOUSE TILT EVENTS (Desktop Only) ---
+        // --- MOUSE EVENTS (Tilt + Tooltip) ---
         cardDiv.onmouseenter = (e) => {
-            if (gyroActive) return; // DISABLE ON MOBILE
+            // Mobile Check
+            if (typeof gyroActive !== 'undefined' && gyroActive) return; 
+            
             playSound('HOVER');
             cardDiv.style.animation = 'none'; 
             activeCardRect = cardDiv.getBoundingClientRect();
             tilter.style.transition = 'none';
+
+            // TOOLTIP LOGIC
+            // Allow if: (It is Binder Mode) OR (The card is Face Up)
+            // Note: .flipped class means the BACK is showing.
+            const isFaceUp = !flipper.classList.contains('flipped');
+            
+            if ((isBinder || isFaceUp) && typeof scheduleTooltip === 'function') {
+                scheduleTooltip(card, e);
+            }
         };
 
         cardDiv.onmousemove = (e) => {
-            if (gyroActive) return; // DISABLE ON MOBILE
+            // Mobile Check
+            if (typeof gyroActive !== 'undefined' && gyroActive) return;
             if(!activeCardRect) return;
+            
+            // 1. Tilt Effect
             tiltCard(e, tilter, flipper); 
-            // Tooltip logic handles its own mobile check internally now
-            if(globalTooltip.style.display === 'block') moveTooltip(e);
+            
+            // 2. Tooltip Movement
+            // We check the element directly to ensure smooth tracking
+            const tooltipEl = document.getElementById('cardTooltip');
+            if (tooltipEl && tooltipEl.style.display === 'block') {
+                moveTooltip(e.pageX, e.pageY);
+            }
         };
 
         cardDiv.onmouseleave = () => {
-            // We keep this active so if you tap "off" a card, it resets
-            hideTooltip();
+            // TOOLTIP STOP
+            if (typeof cancelTooltip === 'function') cancelTooltip();
+
+            // Reset Tilt
+            if (typeof hideTooltip === 'function') hideTooltip(); 
             resetCard(tilter);
             activeCardRect = null;
         };
 
+        // --- CLICK EVENTS (Modal vs Reveal) ---
         cardDiv.onclick = (e) => {
-            if (isBinder) { if(globalTooltip.style.display === 'block') hideTooltip(); else { showTooltip(card); moveTooltip(e); } return; }
+            // 1. Binder Logic: Open High-Res Modal
+            if (isBinder) { 
+                if (typeof cancelTooltip === 'function') cancelTooltip(); 
+                openPreviewModal(card); 
+                return; 
+            }
+
+            // 2. Pack Opening Logic: Reveal/Hide
             if(flipper.classList.contains('flipped')) {
-                flipper.classList.remove('flipped');
-                if(isGodPull) { playSound('RARE'); cardDiv.classList.add('legendary-reveal'); triggerExplosion(e.clientX, e.clientY); } 
-                else if(isHit) { playSound('RARE'); } else { playSound('FLIP'); }
-                if(globalTooltip.style.display === 'block') hideTooltip(); else { showTooltip(card); moveTooltip(e); }
-                if(document.querySelectorAll('.card-flipper.flipped').length === 0) { 
-                    revealBtn.style.display = 'none'; 
+                // REVEAL
+                flipper.classList.remove('flipped'); 
+                
+                const rect = cardDiv.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                if (typeof triggerImpact === 'function') triggerImpact(card, centerX, centerY); 
+                playSound('FLIP');
+                
+                cardDiv.classList.remove('legendary-reveal'); 
+                if (typeof hideTooltip === 'function') hideTooltip();
+
+            } else {
+                // HIDE
+                flipper.classList.add('flipped'); 
+                playSound('FLIP');
+                
+                if (typeof hideTooltip === 'function') hideTooltip();
+                
+                // Hide "Reveal All" button if everything is open
+                if(document.querySelectorAll('.card-flipper:not(.flipped)').length === 0) { 
+                    const mainBtn = document.getElementById('revealBtn');
+                    if(mainBtn) mainBtn.style.display = 'none'; 
+                    
                     const localBtn = cardDiv.closest('.pack-group')?.querySelector('.reveal-btn');
                     if(localBtn) localBtn.style.display = 'none';
                 }
-            } else {
-                flipper.classList.add('flipped');
-                cardDiv.classList.remove('legendary-reveal'); playSound('FLIP'); hideTooltip(); 
             }
         };
 
+        // --- ASSEMBLE HTML ---
         const badgeText = card.displayNumber || card.id;
         let badgeHTML = `<div class="card-rarity-badge">${badgeText}</div>`;
         if(quantity > 1) badgeHTML += `<div class="count-badge">x${quantity}</div>`;
@@ -1451,70 +2210,151 @@
 
         const front = document.createElement('div'); front.className = 'card-front';
         front.innerHTML = `<div class="card-glare ${glareClass}"></div><img src="${card.image}" onerror="this.src='https://placehold.co/200x280?text=Image+Blocked'" style="width:100%; height:100%; object-fit:cover;">${badgeHTML}`;
+        
         const back = document.createElement('div'); back.className = 'card-back';
         back.style.backgroundImage = `url('${backImg}')`;
 
         flipper.appendChild(front); flipper.appendChild(back); tilter.appendChild(flipper); cardDiv.appendChild(tilter); container.appendChild(cardDiv);
     }
 
+    // --- BULLETPROOF TOOLTIP SYSTEM ---
+    
+    let tooltipTimer = null; 
+
     function showTooltip(card) {
-        globalTooltip.innerHTML = `<div class="tooltip-header">${card.name}</div>`;
-        let descText = null;
-        if (card.extendedData && card.extendedData.length > 0) {
-            card.extendedData.forEach(item => {
-                if (item.name === "Number") return; 
-                if (item.name === "Description" || item.name === "Effect") {
-                    descText = item.value;
-                } else {
-                    const label = item.displayName || item.name;
-                    globalTooltip.innerHTML += `<div class="tooltip-row"><span class="tooltip-label">${label}:</span><span class="tooltip-val">${item.value}</span></div>`;
-                }
-            });
-            if (descText) globalTooltip.innerHTML += `<div class="tooltip-desc-container"><span class="tooltip-desc-title">Description</span><span class="tooltip-desc-text">${descText}</span></div>`;
-        } else { globalTooltip.innerHTML += `<div>No Details Found</div>`; }
-        
-        // --- SMART POSITIONING LOGIC ---
-        // 1. Mobile Check: If screen is narrow, dock to bottom
-        if (window.innerWidth <= 768) {
-            globalTooltip.className = 'mobile-tooltip'; // Add mobile class
-            globalTooltip.style.top = '';  // Clear inline styles
-            globalTooltip.style.left = '';
-        } else {
-            // 2. Desktop: Remove mobile class
-            globalTooltip.className = ''; 
-            globalTooltip.id = 'global-tooltip'; // Ensure ID style applies
+        const tooltipEl = document.getElementById('cardTooltip');
+        if (!tooltipEl) return;
+
+        // --- HELPER: Safe Data Extraction ---
+        const safeGet = (key) => {
+            if (!card.extendedData || !Array.isArray(card.extendedData)) return '';
+            const item = card.extendedData.find(d => d.name === key || d.name === key + "+"); // Handles "Counter" vs "Counter+"
+            return item ? item.value : '';
+        };
+
+        // --- HELPER: Build HTML Row ---
+        const buildRow = (label, value) => {
+            if (!value || value === 'N/A' || value === 'undefined') return ''; 
+            return `
+                <div class="tooltip-row">
+                    <span class="tooltip-label">${label}:</span>
+                    <span class="tooltip-val">${value}</span>
+                </div>`;
+        };
+
+        // --- 1. GATHER DATA ---
+        const number   = safeGet("Number") || card.number || '???';
+        const rarity   = safeGet("Rarity");
+        const color    = safeGet("Color");
+        const cardType = safeGet("CardType");
+        const life     = safeGet("Life");
+        const power    = safeGet("Power");
+        const counter  = safeGet("Counter") || safeGet("Counter+"); // NEW: Counter Logic
+        const attribute= safeGet("Attribute");
+        const cost     = safeGet("Cost");
+        let subtypes   = safeGet("Subtypes");
+        let desc       = safeGet("Description") || safeGet("Effect");
+
+        // --- 2. FORMATTING ---
+        if (subtypes && subtypes.includes(';')) {
+            subtypes = subtypes.replace(/;/g, ' / ');
         }
         
-        globalTooltip.style.display = 'block';
+        let extraInfo = '';
+        if (card.tags && card.tags.isParallel) extraInfo = ' <span style="color:#aaa; font-size:0.8em">(Alt Art)</span>';
+
+        // --- 3. BUILD HTML ---
+        
+        // Header: Name Only (Number moved down)
+        let html = `<div class="tooltip-header">${card.name}${extraInfo}</div>`;
+
+        // Row 1: Number & Rarity
+        html += buildRow('Number', number);
+        html += buildRow('Rarity', rarity);
+        
+        html += buildRow('Color', color);
+        html += buildRow('Card Type', cardType);
+
+        // Life vs Cost
+        if (life) { html += buildRow('Life', life); } 
+        else { html += buildRow('Cost', cost); }
+
+        html += buildRow('Power', power);
+        html += buildRow('Counter+', counter); // NEW ROW
+        html += buildRow('Subtype(s)', subtypes);
+        html += buildRow('Attribute', attribute);
+
+        // Description
+        if (desc) {
+             const formattedDesc = desc.replace(/\n/g, '<br>');
+             html += `
+                <div class="tooltip-desc-container">
+                    <span class="tooltip-desc-title">Description</span>
+                    <div class="tooltip-desc-text">${formattedDesc}</div>
+                </div>`;
+        }
+
+        tooltipEl.innerHTML = html;
+        tooltipEl.style.display = 'block';
     }
 
-    function moveTooltip(e) {
-        // If on mobile, do NOT follow mouse (it stays fixed at bottom)
-        if (window.innerWidth <= 768) return;
+    function hideTooltip() {
+        const tooltipEl = document.getElementById('cardTooltip');
+        if (tooltipEl) tooltipEl.style.display = 'none';
+    }
 
-        const tipW = globalTooltip.offsetWidth;
-        const tipH = globalTooltip.offsetHeight;
+    function moveTooltip(x, y) {
+        const tooltipEl = document.getElementById('cardTooltip');
+        if (!tooltipEl || tooltipEl.style.display === 'none') return;
+        
+        const pad = 20; // Distance from cursor
+        let newLeft = x + pad;
+        let newTop = y + pad;
+
+        // --- EDGE DETECTION ---
+        const rect = tooltipEl.getBoundingClientRect();
         const winW = window.innerWidth;
         const winH = window.innerHeight;
-        
-        let x = e.clientX + 15;
-        let y = e.clientY + 15;
 
-        // COLLISION DETECTION
-        // If going off the RIGHT edge, flip to LEFT of cursor
-        if (x + tipW > winW) {
-            x = e.clientX - tipW - 15;
+        // 1. Check Right Edge
+        // If (Cursor + Padding + Tooltip Width) > Screen Width
+        if (newLeft + rect.width > winW) {
+            // Flip to left side of cursor
+            newLeft = x - rect.width - pad;
         }
 
-        // If going off the BOTTOM edge, flip to ABOVE cursor
-        if (y + tipH > winH) {
-            y = e.clientY - tipH - 15;
+        // 2. Check Bottom Edge
+        // If (Cursor + Padding + Tooltip Height) > Screen Height
+        if (newTop + rect.height > winH) {
+            // Flip to above cursor
+            newTop = y - rect.height - pad;
         }
 
-        globalTooltip.style.left = x + 'px';
-        globalTooltip.style.top = y + 'px';
+        tooltipEl.style.left = newLeft + 'px';
+        tooltipEl.style.top = newTop + 'px';
     }
-    function hideTooltip() { globalTooltip.style.display = 'none'; }
+
+    // --- TIMER LOGIC (With Coordinate Capture) ---
+    function scheduleTooltip(card, event) {
+        if (tooltipTimer) clearTimeout(tooltipTimer);
+        hideTooltip(); 
+
+        // CRITICAL FIX: Capture mouse position NOW.
+        // If we wait 1.5s, the 'event' object might be dead/empty.
+        const startX = event.pageX;
+        const startY = event.pageY;
+
+        // Start new timer
+        tooltipTimer = setTimeout(() => {
+            showTooltip(card);
+            moveTooltip(startX, startY); // Use the captured coordinates
+        }, 1500); 
+    }
+
+    function cancelTooltip() {
+        if (tooltipTimer) clearTimeout(tooltipTimer);
+        hideTooltip();
+    }
     // --- UNIFIED VISUALS HELPER (Fixed Scale & Smooth Glare) ---
     function updateCardVisuals(tilter, rotateX, rotateY) {
         if (!tilter) return;
@@ -1562,6 +2402,36 @@
         updateCardVisuals(tilterDiv, rotateX, rotateY);
     }
     function resetCard(tilterDiv) { tilterDiv.style.transition = 'transform 0.5s ease-out'; tilterDiv.style.transform = `scale(1) rotateX(0deg) rotateY(0deg)`; }
+
+    function openPreviewModal(card) {
+        const overlay = document.getElementById('cardPreviewOverlay');
+        const img = document.getElementById('previewImage');
+        const title = document.getElementById('previewTitle');
+        const price = document.getElementById('previewPrice');
+
+        // 1. GENERATE HIGH-RES URL
+        // TCGPlayer Logic: Replace '_200w' with '_in_1000x1000'
+        let highResUrl = card.image;
+        if (highResUrl.includes('_200w.jpg')) {
+            highResUrl = highResUrl.replace('_200w.jpg', '_in_1000x1000.jpg');
+        }
+
+        // 2. SET CONTENT
+        img.src = highResUrl;
+        title.innerText = card.name;
+        
+        // Format price nicely
+        const pVal = card.marketPrice || card.price || 0;
+        price.innerText = pVal > 0 ? `$${pVal.toFixed(2)}` : "Market Price Unavailable";
+
+        // 3. SHOW
+        overlay.style.display = 'flex';
+        playSound('HOVER'); 
+    }
+
+    function closePreview() {
+        document.getElementById('cardPreviewOverlay').style.display = 'none';
+    }
 
     // --- GYROSCOPE PERMISSION & LOGIC ---
     function requestGyro() {

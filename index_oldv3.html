@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One Piece TCG Simulator v5.2 (Safe Save)</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #1a1a1d;
+            --text-color: #ffffff;
+            --card-width: 200px;
+            --card-height: 280px;
+            --primary-accent: #f7b731; /* Gold */
+            --secondary-accent: #e74c3c; /* Red */
+            --keep-accent: #2ecc71; /* Green */
+            --save-accent: #3498db; /* Blue */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        h1 { color: var(--primary-accent); text-shadow: 2px 2px #000; margin-bottom: 20px; z-index: 10; }
+
+        /* --- MENU BAR --- */
+        .menu-bar { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center; z-index: 10; }
+        .set-btn { background-color: #333; color: white; border: 2px solid #555; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.2s; font-weight: bold; }
+        .set-btn:hover { border-color: var(--primary-accent); background-color: #444; }
+        .set-btn.active { background-color: var(--primary-accent); color: black; border-color: var(--primary-accent); box-shadow: 0 0 10px var(--primary-accent); }
+        .set-btn.retry { border-color: var(--secondary-accent); color: var(--secondary-accent); background: rgba(192, 57, 43, 0.1); }
+        .toggle-btn { background-color: #444; color: #aaa; border: 1px dashed #777; padding: 8px 12px; border-radius: 20px; cursor: pointer; font-size: 0.9rem; }
+        .toggle-btn:hover { color: white; border-color: white; }
+
+        /* --- PACK CONTROLS --- */
+        .pack-controls { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px; z-index: 10; background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 10px; border: 1px solid #333; }
+        .pack-input-label { font-weight: bold; color: #ccc; }
+        #packCountInput { background: #333; color: var(--primary-accent); border: 2px solid #555; padding: 8px; border-radius: 8px; width: 60px; text-align: center; font-size: 1.1rem; font-weight: bold; }
+        
+        .switch-label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #ccc; font-weight: bold; font-size: 0.9rem; }
+        .switch-input { accent-color: var(--primary-accent); width: 18px; height: 18px; cursor: pointer; }
+
+        /* --- 3D PACK AREA --- */
+        .pack-area-wrapper { position: relative; width: 260px; height: 433px; margin-top: 2vh; margin-bottom: 50px; perspective: 1000px; z-index: 10; }
+        .pack-stack { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        .pack-stack-item { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); border: 1px solid #333; transition: all 0.6s cubic-bezier(0.165, 0.84, 0.44, 1); }
+        .pack-container { width: 100%; height: 100%; position: relative; cursor: pointer; z-index: 10; transform: scale(1); transition: transform 0.2s; }
+        .pack-tilter { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; will-change: transform; }
+        .pack-half { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; background-image: url(''); box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 20px 40px rgba(0,0,0,0.6); border-radius: 4px; }
+        .pack-half::before { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.3) 1px, transparent 1px) 0 0 / 100% 4px, linear-gradient(to top, rgba(255,255,255,0.3) 1px, transparent 1px) 0 100% / 100% 4px; background-repeat: repeat-x; height: 100%; mask-image: linear-gradient(to bottom, black 5%, transparent 5%, transparent 95%, black 95%); -webkit-mask-image: linear-gradient(to bottom, black 5%, transparent 5%, transparent 95%, black 95%); pointer-events: none; z-index: 2; }
+        .pack-glare { position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.4) 45%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 0.4) 55%, transparent 70%); background-size: 200% 200%; background-position: calc(var(--pack-x, 50) * 1%) calc(var(--pack-y, 50) * 1%); mix-blend-mode: overlay; opacity: 0.8; pointer-events: none; z-index: 3; }
+        .pack-top { clip-path: polygon(0% 0%, 100% 0%, 100% 20%, 90% 25%, 80% 18%, 70% 26%, 60% 19%, 50% 27%, 40% 18%, 30% 26%, 20% 19%, 10% 25%, 0% 20%); z-index: 5; transform-origin: top center; }
+        .pack-bottom { top: -1px; clip-path: polygon(0% 20%, 10% 25%, 20% 19%, 30% 26%, 40% 18%, 50% 27%, 60% 19%, 70% 26%, 80% 18%, 90% 25%, 100% 20%, 100% 100%, 0% 100%); z-index: 4; transform-origin: bottom center; }
+        .pack-info { position: absolute; width: 100%; text-align: center; color: white; text-shadow: 0 2px 4px black, 0 0 10px black; pointer-events: none; z-index: 6; top: 75%; transition: opacity 0.3s; }
+        .pack-title { font-weight: 900; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 1px; }
+        .pack-subtitle { font-size: 0.9rem; color: #ffd700; margin-top: 5px; font-weight: bold; }
+        .click-hint { position: absolute; bottom: -50px; width: 100%; text-align: center; font-size: 1rem; color: #fff; animation: pulse 1.5s infinite; z-index: 6; font-weight: bold; text-shadow: 0 0 5px black; }
+
+        /* --- ANIMATIONS --- */
+        .pack-enter { animation: packDrop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes packDrop { 0% { transform: translateY(-50px) scale(0.9); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+        .shake-anim { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        .ripped-top { animation: ripTop 0.5s forwards ease-out; }
+        .ripped-bottom { animation: ripBottom 0.5s forwards ease-out; }
+        @keyframes ripTop { 0% { transform: translateY(0) rotate(0); opacity: 1; } 100% { transform: translateY(-150px) rotate(-15deg) scale(0.9); opacity: 0; } }
+        @keyframes ripBottom { 0% { transform: translateY(0); } 100% { transform: translateY(100px) scale(0.95); opacity: 0; } }
+        .flash-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 999; }
+        .flash-anim { animation: flash 0.6s ease-out; }
+        @keyframes flash { 0% { opacity: 0; } 10% { opacity: 0.8; } 100% { opacity: 0; } }
+
+        /* GAME AREAS */
+        #game-view, #binder-view { width: 100%; display: flex; flex-direction: column; align-items: center; }
+        .cards-area { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; width: 100%; max-width: 1400px; z-index: 5; }
+
+        /* PACK GROUPS (Split Mode) */
+        .pack-group {
+            width: 100%;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid #444;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+            transition: 
+                transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                opacity 0.4s ease-out,
+                max-height 0.5s ease-in-out, 
+                margin 0.5s ease-in-out,
+                padding 0.5s ease-in-out,
+                border 0.5s ease-in-out;
+            max-height: 2000px; 
+            overflow: hidden; 
+            transform-origin: center center;
+        }
+        .pack-group.removing {
+            max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0; opacity: 0; pointer-events: none; 
+        }
+        .pack-group-header { font-size: 1.2rem; color: #aaa; margin-bottom: 15px; width: 100%; text-align: left; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .pack-group-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; width: 100%; }
+        .pack-group-actions { display: flex; gap: 10px; margin-top: 15px; }
+        @keyframes fadeIn { to { opacity: 1; } }
+
+        /* --- 3D CARD --- */
+        .card { width: var(--card-width); height: var(--card-height); perspective: 1500px; display: none; cursor: pointer; margin-bottom: 10px; }
+        .card-tilter { width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.1s ease-out; will-change: transform; }
+        .card-flipper { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .card-flipper.flipped { transform: rotateY(180deg); }
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.4); background-color: #333; }
+        .card-front { z-index: 2; transform: rotateY(0deg); }
+        .card-back { transform: rotateY(180deg); background-size: cover; background-position: center; }
+
+        /* ACTION BAR */
+        .action-bar { display: flex; gap: 15px; margin-top: 30px; justify-content: center; flex-wrap: wrap; }
+        .action-btn { padding: 8px 16px; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .action-btn:active { transform: scale(0.95); }
+        .reveal-btn { background-color: #333; border: 2px solid white; }
+        .keep-btn { background-color: var(--keep-accent); color: black; }
+        .keep-btn:hover { background-color: #27ae60; }
+        .toss-btn { background-color: var(--secondary-accent); }
+        .toss-btn:hover { background-color: #c0392b; }
+
+        /* BINDER */
+        .binder-header { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .binder-top-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .data-controls { display: flex; gap: 10px; align-items: center; }
+        .data-btn { background-color: #333; color: var(--save-accent); border: 1px solid var(--save-accent); padding: 6px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+        .binder-stats-row { display: flex; gap: 10px; flex-wrap: wrap; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; font-size: 0.85rem; color: #ccc; }
+        .set-stat-pill { background: #333; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; }
+        .set-stat-pill span { color: var(--primary-accent); font-weight: bold; }
+        .binder-controls { display: flex; gap: 10px; justify-content: center; width: 100%; flex-wrap: wrap; }
+        .binder-select { background: #222; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 5px; font-family: inherit; cursor: pointer; }
+        .collection-stats { font-size: 1.2rem; font-weight: bold; color: var(--primary-accent); }
+        .nav-btn { background-color: #333; color: var(--primary-accent); border: 1px solid var(--primary-accent); padding: 8px 16px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .danger-btn { background-color: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+
+        /* BADGES */
+        .count-badge { position: absolute; top: 8px; left: 8px; background-color: var(--secondary-accent); color: white; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; border: 2px solid white; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.8); }
+        /* FIXED NEW BADGE (Green) */
+        .new-badge { position: absolute; top: 8px; right: 8px; background-color: #2ecc71; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.7rem; border: 2px solid white; z-index: 20; box-shadow: 0 0 10px #2ecc71; animation: pulse 1s infinite; }
+
+        /* TOOLTIP */
+        #global-tooltip { position: fixed; display: none; background-color: rgba(20, 20, 25, 0.95); border: 1px solid var(--primary-accent); color: #fff; padding: 12px; border-radius: 8px; z-index: 9999; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8); max-width: 280px; font-size: 0.85rem; line-height: 1.4; }
+        .tooltip-header { font-weight: bold; color: var(--primary-accent); margin-bottom: 8px; border-bottom: 1px solid #444; padding-bottom: 4px; font-size: 1rem; text-align: center; }
+        .tooltip-row { display: flex; justify-content: space-between; margin-bottom: 4px; border-bottom: 1px solid #333; }
+        .tooltip-label { color: #aaa; margin-right: 10px; white-space: nowrap; }
+        .tooltip-val { text-align: right; color: #fff; font-weight: 500; }
+        .tooltip-desc-container { margin-top: 10px; padding-top: 5px; border-top: 1px solid var(--primary-accent); text-align: center; }
+        .tooltip-desc-title { color: var(--primary-accent); font-weight: bold; display: block; margin-bottom: 4px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+        .tooltip-desc-text { color: #ddd; font-style: italic; font-size: 0.8rem; }
+
+        /* RARITY BORDERS & GLARES */
+        .rarity-C .card-front { border: 4px solid #a9a9a9; }
+        .rarity-UC .card-front { border: 4px solid #4caf50; }
+        .rarity-R .card-front { border: 4px solid #3498db; }
+        .rarity-SR .card-front { border: 4px solid #ffd700; box-shadow: 0 0 15px #ffd700; }
+        .rarity-SEC .card-front { border: 4px solid #e74c3c; box-shadow: 0 0 20px #e74c3c; }
+        .rarity-L .card-front { border: 4px solid #ffd700; }
+        .card-glare { position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 5; opacity: 0; transition: opacity 0.3s; mix-blend-mode: overlay; background-size: 200% 200%; background-position: calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%); pointer-events: none; will-change: background-position; }
+        .card:hover .card-glare { opacity: 1; }
+        .glare-basic { background-image: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.1) 60%, transparent 80%); }
+        .glare-rare { background-image: linear-gradient(115deg, transparent 20%, rgba(0,191,255,0.2) 40%, rgba(135,206,250,0.6) 50%, rgba(0,191,255,0.2) 60%, transparent 80%); }
+        .glare-super { background-image: linear-gradient(115deg, transparent 25%, rgba(255,0,0,0.3) 40%, rgba(255,215,0,0.5) 45%, rgba(0,255,0,0.3) 50%, rgba(0,0,255,0.3) 55%, transparent 75%); mix-blend-mode: color-dodge; }
+        .glare-secret { background-image: radial-gradient(circle at calc(var(--pointer-x) * 1%) calc(var(--pointer-y) * 1%), rgba(255,215,0,0.4), rgba(255,0,0,0.3), transparent 60%), linear-gradient(125deg, transparent, rgba(255,215,0,0.3), transparent); mix-blend-mode: hard-light; }
+        
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        @keyframes popIn { 0% { transform: scale(0) rotateY(180deg); opacity: 0; } 60% { transform: scale(1.1) rotateY(0deg); opacity: 1; } 100% { transform: scale(1) rotateY(0deg); opacity: 1; } }
+        @keyframes shake { 0% { transform: translate(1px, 1px) rotate(0deg); } 10% { transform: translate(-1px, -2px) rotate(-1deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 30% { transform: translate(3px, 2px) rotate(0deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 70% { transform: translate(3px, 1px) rotate(-1deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 90% { transform: translate(1px, 2px) rotate(0deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }
+        .shake-anim { animation: shake 0.5s; animation-iteration-count: 1; }
+
+        /* PARTICLES */
+        .particle { position: fixed; width: 8px; height: 8px; background-color: gold; pointer-events: none; border-radius: 50%; z-index: 9999; animation: fadeOut 1s forwards ease-out; }
+        @keyframes fadeOut { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } }
+        @keyframes legendary-pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); border-color: #ffd700; } 50% { box-shadow: 0 0 50px 20px rgba(255, 215, 0, 0); border-color: #ffffff; } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); border-color: #ffd700; } }
+        .legendary-reveal .card-front { animation: legendary-pulse 1.2s infinite; border: 4px solid #ffd700 !important; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <h1>🏴‍☠️ One Piece TCG Simulator</h1>
+
+    <div class="menu-bar" id="menuBar"></div>
+
+    <div class="flash-overlay" id="flashOverlay"></div>
+
+    <div id="game-view">
+        
+        <div class="pack-controls">
+            <span class="pack-input-label">Packs:</span>
+            <input type="number" id="packCountInput" value="1" min="1" max="24" onchange="updatePackVisuals()">
+            
+            <label class="switch-label">
+                <input type="checkbox" id="splitToggle" class="switch-input">
+                Split Packs
+            </label>
+        </div>
+
+        <div class="pack-area-wrapper" id="packWrapper">
+            <div id="packStack" class="pack-stack"></div>
+            <div class="pack-container" id="pack">
+                <div class="pack-tilter" id="packTilter" onclick="openPack()">
+                    <div class="pack-wrapper">
+                        <div class="pack-half pack-top" id="packTop"><div class="pack-glare"></div></div>
+                        <div class="pack-half pack-bottom" id="packBottom">
+                            <div class="pack-glare"></div>
+                            <div class="pack-info" id="packInfo">
+                                <div class="pack-title" id="packTitle">Loading...</div>
+                                <div class="pack-subtitle" id="packSubtitle">Please Wait</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="click-hint">CLICK TO OPEN</div>
+            </div>
+        </div>
+
+        <div class="cards-area" id="cardsArea"></div>
+
+        <div class="action-bar" id="actionBar" style="display:none;">
+            <button class="action-btn reveal-btn" id="revealBtn" onclick="flipAll()">Reveal All</button>
+            <button class="action-btn keep-btn" id="keepBtn" onclick="keepCards()">Keep All</button>
+            <button class="action-btn toss-btn" id="tossBtn" onclick="tossCards()">Toss (Reset)</button>
+        </div>
+    </div>
+
+    <div id="binder-view" style="display:none;">
+        <div class="binder-header">
+            <div class="binder-top-row">
+                <button class="nav-btn" onclick="toggleBinder(false)">← Back</button>
+                <div class="collection-stats" id="collectionStats">Total: 0</div>
+                <div class="data-controls">
+                    <button class="data-btn" onclick="exportSave()">💾 Save</button>
+                    <button class="data-btn" onclick="document.getElementById('importFile').click()">📂 Load</button>
+                    <button class="danger-btn" onclick="wipeCollection()">💀 Reset</button>
+                    <input type="file" id="importFile" style="display:none" onchange="importSave(this)">
+                </div>
+            </div>
+            <div class="binder-stats-row" id="binderStats"></div>
+            <div id="binder-controls">
+                <select id="filterSet" class="binder-select" onchange="renderBinder()"><option value="ALL">All Sets</option></select>
+                <select id="filterRarity" class="binder-select" onchange="renderBinder()">
+                    <option value="ALL">All Rarities</option>
+                    <option value="MANGA">🏴‍☠️ Manga Rares</option>
+                    <option value="TREASURE">🏆 Treasure Rares</option>
+                    <option value="AA">✨ Alt Arts / Parallels</option>
+                    <option value="SPECIAL">🔥 Special / Box Toppers</option>
+                    <option value="SEC">Secret Rare</option>
+                    <option value="L">Leader</option>
+                    <option value="SR">Super Rare</option>
+                    <option value="R">Rare</option>
+                    <option value="UC">Uncommon</option>
+                    <option value="C">Common</option>
+                    <option value="DON">DON!! Cards</option>
+                </select>
+                <input type="text" id="binderSearch" class="binder-select" placeholder="Search Name..." oninput="renderBinder()" style="width: 150px; padding-left: 10px;">
+            </div>
+        </div>
+        <div class="cards-area" id="binderGrid"></div>
+    </div>
+
+    <div id="global-tooltip"></div>
+
+<script>
+    // --- 1. CONFIGURATION ---
+    const CACHE_VERSION = "v27"; // Bumped for safe save
+
+    // CONFIGURABLE SPEEDS (ms)
+    const SPEED = {
+        SINGLE: 200, // Single Pack
+        BULK: 40,    // 2-10 Packs
+        TURBO: 10    // 11+ Packs
+    };
+
+    // ANIMATION TIMINGS (ms)
+    const DELAY = {
+        SHAKE: 500,  // How long to shake before ripping
+        REVEAL: 400  // Time from Rip start to cards appearing
+    };
+
+    const CARD_BACKS = { GENERIC: "op_back_gen.jpg", LEADER: "op_back_lead.jpg", DON: "op_back_don.jpg" };
+    const PACK_IMAGES = { DEFAULT: "pack_blank.png", OP01: "pack_rd.png", OP02: "pack_pw.png", OP03: "pack_ps.png", OP04: "pack_ki.png", OP05: "pack_ane.png", OP06: "pack_wc.png", OP07: "pack_fyf.png", OP08: "pack_tl.png", OP09: "pack_enw.png", OP10: "pack_rb.png", OP11: "pack_fds.png", OP12: "pack_lm.png", OP13: "pack_chw.png", OP14: "pack_ass.png", EB01: "pack_eb01.png", EB02: "pack_eb02.png", PRB01: "pack_prb1.png", PRB02: "pack_prb2.png" };
+    const SOUND_ASSETS = { OPEN: "packRip.mp3", FLIP: "cardFlip.mp3", HOVER: "over.mp3", RARE: "reveal.mp3", DEAL: "cardDeal.mp3", DROP: "packDrop.mp3" };
+    const DATA_SOURCES = [
+        { name: "OP-01 Romance Dawn", url: "https://tcgcsv.com/tcgplayer/68/3188/products" },
+        { name: "OP-02 Paramount War", url: "https://tcgcsv.com/tcgplayer/68/17698/products" },
+        { name: "OP-03 Pillars of Strength", url: "https://tcgcsv.com/tcgplayer/68/22890/products" },
+        { name: "OP-04 Kingdoms of Intrigue", url: "https://tcgcsv.com/tcgplayer/68/23024/products" },
+        { name: "OP-05 Awakening of the New Era", url: "https://tcgcsv.com/tcgplayer/68/23213/products" },
+        { name: "OP-06 Wings of the Captain", url: "https://tcgcsv.com/tcgplayer/68/23272/products" },
+        { name: "OP-07 500 Years into the Future", url: "https://tcgcsv.com/tcgplayer/68/23387/products" },
+        { name: "OP-08 Two Legends", url: "https://tcgcsv.com/tcgplayer/68/23462/products" },
+        { name: "OP-09 Emperors in the New World", url: "https://tcgcsv.com/tcgplayer/68/23589/products" },
+        { name: "OP-10 Royal Blood", url: "https://tcgcsv.com/tcgplayer/68/23766/products" },
+        { name: "OP-11 A Fist of Divine Speed", url: "https://tcgcsv.com/tcgplayer/68/24241/products" },
+        { name: "OP-12 Legacy of the Master", url: "https://tcgcsv.com/tcgplayer/68/24302/products" },
+        { name: "OP-13 Carrying on His Will", url: "https://tcgcsv.com/tcgplayer/68/24303/products" },
+        { name: "OP-14 The Azure Sea's Seven", url: "https://tcgcsv.com/tcgplayer/68/24537/products" },
+        { name: "EB-01 Memorial Collection", url: "https://tcgcsv.com/tcgplayer/68/23333/products" },
+        { name: "EB-02 Anime 25th Collection", url: "https://tcgcsv.com/tcgplayer/68/23834/products" },
+        { name: "PRB-01 One Piece Card The Best", url: "https://tcgcsv.com/tcgplayer/68/23496/products" },
+        { name: "PRB-02 One Piece Card The Best vol 2", url: "https://tcgcsv.com/tcgplayer/68/24305/products" }
+    ];
+    const ALLOWED_PREFIXES = DATA_SOURCES.map(ds => ds.name.split(" ")[0].replace("-", ""));
+
+    // --- 2. STATE ---
+    let setPools = []; 
+    let masterPool = { common: [], uncommon: [], rare: [], superRare: [], secretRare: [], leader: [], manga: [], altArt: [], boxTopper: [], special: [], treasure: [], don: [] };
+    let activePool = null; 
+    let userCollection = {}; 
+    let limboBatches = []; 
+    let activeCardRect = null;
+    let activePackRect = null;
+    let showPackText = true;
+
+    // DOM References
+    const packContainer = document.getElementById('pack');
+    const packStack = document.getElementById('packStack');
+    const packWrapper = document.getElementById('packWrapper');
+    const packTop = document.getElementById('packTop');
+    const packBottom = document.getElementById('packBottom');
+    const packTilter = document.getElementById('packTilter');
+    const packInfo = document.getElementById('packInfo');
+    const packTitle = document.getElementById('packTitle');
+    const packSubtitle = document.getElementById('packSubtitle');
+    const flashOverlay = document.getElementById('flashOverlay');
+    const menuBar = document.getElementById('menuBar');
+    const cardsArea = document.getElementById('cardsArea');
+    const actionBar = document.getElementById('actionBar');
+    
+    // Global Buttons
+    const revealBtn = document.getElementById('revealBtn');
+    const keepBtn = document.getElementById('keepBtn');
+    const tossBtn = document.getElementById('tossBtn');
+
+    const globalTooltip = document.getElementById('global-tooltip');
+    const gameView = document.getElementById('game-view');
+    const binderView = document.getElementById('binder-view');
+    const binderGrid = document.getElementById('binderGrid');
+    const collectionStats = document.getElementById('collectionStats');
+    const binderStats = document.getElementById('binderStats');
+    const filterSet = document.getElementById('filterSet');
+    const filterRarity = document.getElementById('filterRarity');
+    const binderSearch = document.getElementById('binderSearch');
+    const packCountInput = document.getElementById('packCountInput');
+    const splitToggle = document.getElementById('splitToggle');
+
+    // --- 3. HELPER FUNCTIONS ---
+    function cleanupStorage() {
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('optcg_cache_') && !key.includes(CACHE_VERSION)) localStorage.removeItem(key);
+        });
+    }
+
+    function analyzeTags(name, cleanName, extendedData) {
+        const n = (name + " " + cleanName).toLowerCase();
+        let rVal = "";
+        if (extendedData) {
+            const rObj = extendedData.find(i => i.name === "Rarity");
+            if (rObj && rObj.value) rVal = rObj.value.toLowerCase();
+        }
+
+        const tags = {
+            isManga: n.includes("manga") || rVal.includes("manga"),
+            // UPDATED LINE BELOW: Added "alternate art" and "alt art"
+            isParallel: n.includes("parallel") || n.includes("(aa)") || n.includes("alternate art") || n.includes("alt art") || rVal.includes("parallel") || rVal.includes("aa"),
+            isBoxTopper: n.includes("box topper") || n.includes("promotion pack"),
+            isSpecial: n.includes("anniversary") || n.includes("special") || n.includes("event") || n.includes("(sp)") || rVal.includes("sp"),
+            isSignature: n.includes("signature") || n.includes("stamped"),
+            isTreasure: rVal.includes("tr")
+        };
+        return tags;
+    }
+
+    function playSound(key) {
+        const url = SOUND_ASSETS[key];
+        if (!url) return;
+        const audio = new Audio(url);
+        audio.volume = 0.5; 
+        if (key === 'HOVER') audio.volume = 0.2; 
+        if (key === 'OPEN') audio.volume = 0.6;
+        if (key === 'RARE') audio.volume = 0.7; 
+        if (key === 'DROP') audio.volume = 0.4; 
+        let variance = 0.1; 
+        if (key === 'RARE') variance = 0.05; 
+        if (key === 'DEAL' || key === 'FLIP') variance = 0.15; 
+        const rate = 1.0 - variance + (Math.random() * (variance * 2));
+        audio.playbackRate = rate;
+        audio.play().catch(e => { });
+    }
+
+    function determineBackType(rarityStr, extendedData) {
+        let isLeader = false;
+        let isDon = false;
+        if (rarityStr && (rarityStr === 'L' || rarityStr.includes('LEADER'))) isLeader = true;
+        if (extendedData && Array.isArray(extendedData)) {
+            extendedData.forEach(item => {
+                const n = item.name.toLowerCase();
+                const v = item.value ? item.value.toString().toUpperCase().trim() : "";
+                if (n === 'rarity' || n === 'cardtype' || n === 'card type' || n === 'type') {
+                    if (v.includes('LEADER')) isLeader = true;
+                    if (v.includes('DON')) isDon = true;
+                }
+            });
+        }
+        if (isDon) return 'DON';
+        if (isLeader) return 'LEADER';
+        return 'GENERIC';
+    }
+
+    // --- 4. INITIALIZATION ---
+    async function init() {
+        packTitle.innerText = "Loading...";
+        cleanupStorage();
+        document.body.addEventListener('click', () => {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            if (context.state === 'suspended') context.resume();
+        }, { once: true });
+
+        DATA_SOURCES.forEach(source => {
+            const opt = document.createElement('option');
+            opt.innerText = source.name;
+            const code = source.name.split(" ")[0].replace("-", ""); 
+            opt.value = code; 
+            filterSet.appendChild(opt);
+        });
+        const otherOpt = document.createElement('option');
+        otherOpt.innerText = "Other / Promos / Starters";
+        otherOpt.value = "OTHER";
+        filterSet.appendChild(otherOpt);
+
+        const jobs = DATA_SOURCES.map(async (source, index) => {
+            const pool = await fetchAndParse(source.url, source.name, source.name.split(" ")[0].replace("-", ""));
+            if(pool.error) return { name: source.name, error: true, url: source.url, count: 0 };
+            return { name: source.name, pool: pool, count: countTotal(pool) };
+        });
+
+        const results = await Promise.all(jobs);
+        setPools = results;
+        results.forEach((result, index) => { if(!result.error && result.count > 0) mergeIntoMaster(result.pool); });
+
+        // --- SAFE HYDRATION ---
+        const savedData = localStorage.getItem('optcg_collection');
+        if (savedData) {
+            try { 
+                const rawSave = JSON.parse(savedData);
+                userCollection = {}; 
+                Object.keys(rawSave).forEach(key => {
+                    const savedItem = rawSave[key];
+                    let foundCard = null;
+                    const pools = ['common','uncommon','rare','superRare','secretRare','leader','manga','altArt','boxTopper','special','treasure','don'];
+                    for (const p of pools) {
+                        if (masterPool[p]) {
+                            const match = masterPool[p].find(c => String(c.id) === String(key) || c.name === key);
+                            if (match) { foundCard = match; break; }
+                        }
+                    }
+                    // SAFEGUARD: If card not found in DB (e.g., fetch error), create placeholder so it isn't deleted.
+                    if (foundCard) {
+                        // *** ADD THIS LINE ***
+                        foundCard.tags = analyzeTags(foundCard.name, "", foundCard.extendedData);
+                        
+                        userCollection[key] = { count: savedItem.count || 1, isNew: savedItem.isNew || false, data: foundCard };
+                    } else {
+                        console.warn(`Card ${key} not found in database. Creating placeholder.`);
+                        userCollection[key] = {
+                            count: savedItem.count || 1,
+                            isNew: savedItem.isNew || false,
+                            data: {
+                                id: key,
+                                name: "Loading Error (" + key + ")",
+                                image: "https://placehold.co/200x280?text=Error",
+                                rarity: "COMMON",
+                                setID: savedItem.setID || "OTHER",
+                                extendedData: [],
+                                backType: "GENERIC"
+                            }
+                        };
+                    }
+                });
+                if(Object.keys(userCollection).length > 0) saveCollection(); 
+            } catch(e) { userCollection = {}; }
+        }
+
+        createMenu();
+        if(packContainer && packTilter) {
+            packContainer.addEventListener('mouseenter', () => { activePackRect = packContainer.getBoundingClientRect(); packTilter.style.transition = 'none'; });
+            packContainer.addEventListener('mousemove', (e) => {
+                if(!activePackRect) return;
+                const x = e.clientX - activePackRect.left; const y = e.clientY - activePackRect.top;
+                const xPercent = (x / activePackRect.width) * 100; const yPercent = (y / activePackRect.height) * 100;
+                packTilter.style.setProperty('--pack-x', xPercent); packTilter.style.setProperty('--pack-y', yPercent);
+                const rotateX = ((y - activePackRect.height/2) / (activePackRect.height/2)) * -15; 
+                const rotateY = ((x - activePackRect.width/2) / (activePackRect.width/2)) * 15;
+                packTilter.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            });
+            packContainer.addEventListener('mouseleave', () => {
+                packTilter.style.transition = 'transform 0.5s ease-out';
+                packTilter.style.transform = `rotateX(0deg) rotateY(0deg)`;
+                activePackRect = null;
+            });
+        }
+        const validIndex = setPools.findIndex(s => !s.error);
+        if(validIndex >= 0) selectSet(validIndex); else selectSet(-1);
+    }
+
+    // --- 5. PARSING ---
+    async function fetchAndParse(url, setName, currentSetCode) {
+        const cacheKey = 'optcg_cache_' + CACHE_VERSION + '_' + setName; 
+        const cached = localStorage.getItem(cacheKey);
+        if(cached) return JSON.parse(cached);
+
+        let localPool = { common: [], uncommon: [], rare: [], superRare: [], secretRare: [], leader: [], manga: [], altArt: [], boxTopper: [], special: [], treasure: [], don: [] };
+        
+        try {
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error("Proxy error");
+            const data = await response.json();
+            let rawList = data.results || data.cards || (Array.isArray(data) ? data : []);
+
+            const groupCounts = {}; let dominantGroupId = null; let maxCount = 0;
+            rawList.forEach(c => { if (c.groupId) { groupCounts[c.groupId] = (groupCounts[c.groupId] || 0) + 1; if (groupCounts[c.groupId] > maxCount) { maxCount = groupCounts[c.groupId]; dominantGroupId = c.groupId; } } });
+
+            rawList.forEach(rawCard => {
+                if (!rawCard.extendedData || rawCard.extendedData.length === 0) return;
+                if (dominantGroupId && rawCard.groupId !== dominantGroupId) return; 
+
+                const name = rawCard.name || rawCard.cleanName || "Unknown";
+                const cleanName = rawCard.cleanName || "";
+                const id = rawCard.productId || rawCard.id || "000";
+                const image = rawCard.imageUrl || rawCard.image || "https://placehold.co/200x280?text=No+Image";
+                const extendedData = rawCard.extendedData || []; 
+                let setID = "OTHER"; let displayNumber = id; 
+                const numEntry = extendedData.find(i => i.name === "Number");
+                if(numEntry && numEntry.value) {
+                    displayNumber = numEntry.value; const rawPrefix = numEntry.value.split('-')[0];
+                    if(ALLOWED_PREFIXES.includes(rawPrefix)) { setID = rawPrefix; } else { setID = 'OTHER'; }
+                }
+
+                const tags = analyzeTags(name, cleanName, extendedData);
+                let rarityStr = "Common";
+                if (extendedData) { const r = extendedData.find(item => item.name === "Rarity"); if (r) rarityStr = r.value; } 
+                else if (rawCard.rarity) rarityStr = rawCard.rarity;
+                rarityStr = rarityStr.toUpperCase();
+
+                const backType = determineBackType(rarityStr, extendedData);
+                const card = { name, id, displayNumber, image, rarity: rarityStr, extendedData, setID, backType, tags };
+
+                if (tags.isManga) localPool.manga.push(card);
+                else if (tags.isTreasure) localPool.treasure.push(card);
+                else if (tags.isBoxTopper) localPool.boxTopper.push(card);
+                else if (tags.isSpecial) localPool.special.push(card);
+                else if (tags.isParallel) localPool.altArt.push(card);
+                else if (backType === 'DON') localPool.don.push(card);
+                else {
+                    if (rarityStr === 'UC' || rarityStr.includes("UNCOMMON")) localPool.uncommon.push(card);
+                    else if (rarityStr === 'SR' || rarityStr.includes("SUPER")) localPool.superRare.push(card);
+                    else if (rarityStr === 'SEC' || rarityStr.includes("SECRET")) localPool.secretRare.push(card);
+                    else if (rarityStr === 'L' || rarityStr.includes("LEADER")) localPool.leader.push(card);
+                    else if (rarityStr === 'R' || rarityStr.includes("RARE")) localPool.rare.push(card);
+                    else if (rarityStr === 'TR' || rarityStr === 'SPECIAL') localPool.special.push(card); 
+                    else localPool.common.push(card);
+                }
+            });
+            try { localStorage.setItem(cacheKey, JSON.stringify(localPool)); } catch(e) {}
+            return localPool;
+        } catch (err) { return { error: true }; }
+    }
+
+    async function retryLoad(index) {
+        const source = DATA_SOURCES[index];
+        const btn = document.getElementById(`btn-${index}`);
+        if(btn) btn.innerText = "Loading...";
+        
+        // Re-attempt the fetch
+        const pool = await fetchAndParse(source.url, source.name, source.name.split(" ")[0].replace("-", ""));
+        
+        if(pool.error) {
+            if(btn) btn.innerText = "Retry " + source.name.split(" ")[0];
+            alert("Retry failed. The proxy might be busy, please try again in a moment.");
+        } else {
+            // Success! Update data and UI
+            setPools[index] = { name: source.name, pool: pool, count: countTotal(pool) };
+            mergeIntoMaster(pool);
+            createMenu(); 
+            selectSet(index); 
+            alert(`${source.name} loaded successfully!`);
+        }
+    }
+
+    function mergeIntoMaster(pool) {
+        masterPool.common.push(...pool.common); masterPool.uncommon.push(...pool.uncommon); masterPool.rare.push(...pool.rare);
+        masterPool.superRare.push(...pool.superRare); masterPool.secretRare.push(...pool.secretRare); masterPool.leader.push(...pool.leader);
+        if(!masterPool.manga) masterPool.manga = []; masterPool.manga.push(...(pool.manga || []));
+        if(!masterPool.altArt) masterPool.altArt = []; masterPool.altArt.push(...(pool.altArt || []));
+        if(!masterPool.special) masterPool.special = []; masterPool.special.push(...(pool.special || []));
+        if(!masterPool.treasure) masterPool.treasure = []; masterPool.treasure.push(...(pool.treasure || []));
+        if(!masterPool.don) masterPool.don = []; masterPool.don.push(...(pool.don || []));
+    }
+
+    function countTotal(pool) {
+        return pool.common.length + pool.uncommon.length + pool.rare.length + pool.superRare.length + pool.secretRare.length + pool.leader.length + (pool.manga ? pool.manga.length : 0) + (pool.altArt ? pool.altArt.length : 0);
+    }
+
+    // --- 6. MENU & NAV ---
+    function createMenu() {
+        menuBar.innerHTML = "";
+        const binderBtn = document.createElement('button'); binderBtn.className = "set-btn"; binderBtn.innerText = "📖 MY BINDER"; binderBtn.style.borderColor = "#e74c3c"; binderBtn.onclick = () => toggleBinder(true); menuBar.appendChild(binderBtn);
+        const sep = document.createElement('span'); sep.innerText = "|"; sep.style.color = "#555"; sep.style.alignSelf = "center"; menuBar.appendChild(sep);
+        setPools.forEach((set, index) => {
+            const btn = document.createElement('button'); btn.id = `btn-${index}`; btn.className = "set-btn";
+            if (set.error) { btn.classList.add('retry'); btn.innerText = "Retry " + set.name.split(" ")[0]; btn.onclick = () => retryLoad(index); } 
+            else { btn.innerText = set.name.split(" ")[0]; btn.onclick = () => selectSet(index); }
+            menuBar.appendChild(btn);
+        });
+        const toggleBtn = document.createElement('button'); toggleBtn.className = "toggle-btn"; toggleBtn.innerText = "Hide Text"; toggleBtn.onclick = togglePackText; menuBar.appendChild(toggleBtn);
+        const debugBtn = document.createElement('button'); debugBtn.className = "toggle-btn"; debugBtn.innerText = "🔧 TEST"; debugBtn.style.borderColor = "#2ecc71"; debugBtn.style.color = "#2ecc71"; debugBtn.style.display = "none"; debugBtn.onclick = openDebugPack; menuBar.appendChild(debugBtn);
+        const allBtn = document.createElement('button'); allBtn.className = "set-btn"; allBtn.innerText = "ALL DECKS"; allBtn.style.borderColor = "#ffd700"; allBtn.onclick = () => selectSet(-1); menuBar.appendChild(allBtn);
+    }
+
+    function togglePackText() {
+        showPackText = !showPackText; packInfo.style.opacity = showPackText ? '1' : '0';
+        const btn = document.querySelector('.toggle-btn'); if(btn) btn.innerText = showPackText ? "Hide Text" : "Show Text";
+    }
+
+    function selectSet(index) {
+        const hasCards = limboBatches.some(batch => batch !== null && batch.length > 0);
+        if (hasCards) {
+            if (!confirm("You have unsaved cards on the table! Switching sets will TOSS them. Continue?")) return; 
+            limboBatches = []; 
+        }
+
+        toggleBinder(false);
+        const buttons = document.querySelectorAll('.set-btn'); buttons.forEach(btn => btn.classList.remove('active'));
+        const offset = 1; if (index === -1) { if(buttons[buttons.length-1]) buttons[buttons.length-1].classList.add('active'); } else { if(buttons[index + offset]) buttons[index + offset].classList.add('active'); }
+
+        if (index === -1) {
+            activePool = masterPool; packTitle.innerText = "ALL DECKS"; packSubtitle.innerText = "Drawing from " + countTotal(masterPool) + " cards";
+            document.getElementById('packTop').style.backgroundImage = `url('${PACK_IMAGES.DEFAULT}')`; document.getElementById('packBottom').style.backgroundImage = `url('${PACK_IMAGES.DEFAULT}')`;
+        } else {
+            if(setPools[index].error) return; 
+            activePool = setPools[index].pool; packTitle.innerText = setPools[index].name; packSubtitle.innerText = setPools[index].count + " cards in set";
+            const setCode = setPools[index].name.split(" ")[0].replace("-", ""); const imgUrl = PACK_IMAGES[setCode] || PACK_IMAGES.DEFAULT;
+            document.getElementById('packTop').style.backgroundImage = `url('${imgUrl}')`; document.getElementById('packBottom').style.backgroundImage = `url('${imgUrl}')`;
+        }
+        playSound('DROP'); 
+        document.getElementById('pack').classList.remove('pack-enter'); void document.getElementById('pack').offsetWidth; document.getElementById('pack').classList.add('pack-enter');
+        resetPack();
+    }
+
+    // --- 7. PACK VISUALS ---
+    function updatePackVisuals() {
+        const count = parseInt(packCountInput.value) || 1;
+        packStack.innerHTML = ''; 
+        const stackLimit = Math.min(count - 1, 10); 
+        for(let i=0; i<stackLimit; i++) {
+            const ghost = document.createElement('div');
+            ghost.className = 'pack-stack-item';
+            ghost.style.backgroundImage = `url('${PACK_IMAGES.DEFAULT}')`;
+            const rot = (Math.random() * 10 - 5) + 'deg'; 
+            const xOff = (i * -2) + 'px'; const yOff = (i * -3) + 'px';
+            ghost.style.transform = `translate(${xOff}, ${yOff}) rotate(${rot})`;
+            ghost.style.zIndex = -1 - i;
+            packStack.appendChild(ghost);
+        }
+    }
+
+    function generatePack() {
+        const get = (poolName) => {
+            let pool = activePool[poolName]; if (!pool || pool.length === 0) pool = activePool.common; if (!pool || pool.length === 0) return null;
+            return pool[Math.floor(Math.random() * pool.length)];
+        };
+        if (!activePool || (!activePool.common || activePool.common.length === 0)) { alert("Set error."); return []; }
+
+        let scenario = "DOUBLE_RARE"; const roll = Math.random();
+        if (roll < 0.60) scenario = "DOUBLE_RARE"; else if (roll < 0.75) scenario = "LEADER_PACK"; else if (roll < 0.95) scenario = "SR_PACK"; else scenario = "BIG_HIT"; 
+
+        const hits = [];
+        if (scenario === "DOUBLE_RARE") { hits.push(get('rare')); hits.push(get('rare')); } 
+        else if (scenario === "LEADER_PACK") { hits.push(get('leader')); hits.push(get('rare')); hits.push(get('rare')); } 
+        else if (scenario === "SR_PACK") { hits.push(get('superRare')); hits.push(get('rare')); } 
+        else if (scenario === "BIG_HIT") {
+            hits.push(get('rare')); const bigRoll = Math.random();
+            if (bigRoll < 0.01) hits.push(get('manga') || get('secretRare')); 
+            else if (bigRoll < 0.05) hits.push(get('treasure') || get('special') || get('altArt')); 
+            else if (bigRoll < 0.40) hits.push(get('altArt')); else hits.push(get('secretRare')); 
+        }
+
+        let addDon = false; if (Math.random() < 0.25) addDon = true; if (scenario === "LEADER_PACK") addDon = false;
+        const hasAlt = hits.some(c => c && c.tags && (c.tags.isParallel || c.tags.isSpecial || c.tags.isManga || c.tags.isTreasure));
+        if (hasAlt) addDon = false;
+
+        const packCards = [];
+        let commonSlots = 12 - 3 - hits.filter(h => h).length - (addDon ? 1 : 0);
+        if (commonSlots < 0) commonSlots = 0;
+
+        for(let i=0; i<commonSlots; i++) packCards.push(get('common'));
+        if (addDon) { const donCard = get('don'); if (donCard) packCards.push(donCard); else packCards.push(get('common')); }
+        for(let i=0; i<3; i++) packCards.push(get('uncommon'));
+        hits.forEach(card => { if(card) packCards.push(card); });
+
+        return packCards.filter(c => c !== null && c !== undefined);
+    }
+
+    function generateDebugPack() {
+        if (!activePool) { alert("Select a set."); return []; }
+        const debugCards = [];
+        const pools = ['manga', 'treasure', 'altArt', 'special', 'boxTopper', 'secretRare', 'leader', 'superRare', 'rare', 'uncommon', 'common', 'don'];
+        pools.forEach(poolName => { if (activePool[poolName] && activePool[poolName].length > 0) debugCards.push(activePool[poolName][0]); });
+        return debugCards.filter(c => c !== null && c !== undefined);
+    }
+
+    // --- 8. OPENING LOGIC ---
+    function openPack() {
+        playSound('OPEN');
+        packContainer.classList.add('shake-anim');
+        
+        setTimeout(() => {
+            const ghosts = document.querySelectorAll('.pack-stack-item');
+            ghosts.forEach(ghost => {
+                const rX = (Math.random() * 200 - 100) + 'px'; const rY = (Math.random() * 200 - 100) + 'px'; const rRot = (Math.random() * 60 - 30) + 'deg';
+                ghost.style.transition = "all 0.6s ease-out"; ghost.style.opacity = '0'; ghost.style.transform = `translate(${rX}, ${rY}) rotate(${rRot}) scale(1.1)`; 
+            });
+
+            packTop.classList.add('ripped-top'); packBottom.classList.add('ripped-bottom'); flashOverlay.classList.add('flash-anim');
+            
+            setTimeout(() => {
+                packWrapper.style.display = 'none'; 
+                
+                const numPacks = parseInt(packCountInput.value) || 1;
+                const isSplit = splitToggle.checked;
+                limboBatches = []; 
+                
+                for(let i=0; i<numPacks; i++) {
+                    limboBatches.push(generatePack());
+                }
+
+                const delay = numPacks > 10 ? 15 : (numPacks > 1 ? 50 : 300);
+
+                if (isSplit) {
+                    cardsArea.innerHTML = '';
+                    actionBar.style.display = 'none'; 
+
+                    limboBatches.forEach((batch, batchIdx) => {
+                        const groupDiv = document.createElement('div');
+                        groupDiv.className = 'pack-group';
+                        groupDiv.id = `pack-group-${batchIdx}`;
+                        groupDiv.innerHTML = `<div class="pack-group-header">Pack ${batchIdx + 1}</div>`;
+                        const gridDiv = document.createElement('div');
+                        gridDiv.className = 'pack-group-grid';
+                        gridDiv.id = `pack-grid-${batchIdx}`;
+                        groupDiv.appendChild(gridDiv);
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'pack-group-actions';
+                        actionsDiv.innerHTML = `
+                            <button class="action-btn reveal-btn" onclick="flipBatch(${batchIdx})">Reveal</button>
+                            <button class="action-btn keep-btn" onclick="keepBatch(${batchIdx})">Keep</button>
+                            <button class="action-btn toss-btn" onclick="tossBatch(${batchIdx})">Toss</button>
+                        `;
+                        groupDiv.appendChild(actionsDiv);
+                        cardsArea.appendChild(groupDiv);
+
+                        batch.forEach((card, cardIdx) => {
+                            setTimeout(() => {
+                                createCardHTML(card, gridDiv, true, 1, false, true);
+                                if (numPacks > 10) { if (cardIdx % 4 === 0) playSound('DEAL'); } else { playSound('DEAL'); }
+                            }, (batchIdx * 12 + cardIdx) * delay);
+                        });
+                    });
+
+                } else {
+                    cardsArea.innerHTML = '';
+                    limboBatches.forEach((batch, batchIdx) => {
+                        batch.forEach((card, cardIdx) => {
+                            setTimeout(() => {
+                                createCardHTML(card, cardsArea, true, 1, false, true);
+                                if (numPacks > 10) { if (cardIdx % 4 === 0) playSound('DEAL'); } else { playSound('DEAL'); }
+                            }, (batchIdx * 12 + cardIdx) * delay);
+                        });
+                    });
+                    
+                    setTimeout(() => { 
+                        actionBar.style.display = 'flex';
+                        revealBtn.style.display = 'block'; keepBtn.style.display = 'block'; tossBtn.style.display = 'block';
+                    }, (limboBatches.flat().length * delay) + 500);
+                }
+                
+            }, DELAY.REVEAL); 
+        }, DELAY.SHAKE); 
+    }
+
+    function openDebugPack() {
+        playSound('OPEN');
+        packContainer.classList.add('shake-anim');
+        setTimeout(() => {
+            packTop.classList.add('ripped-top'); packBottom.classList.add('ripped-bottom'); flashOverlay.classList.add('flash-anim');
+            setTimeout(() => {
+                packContainer.style.display = 'none';
+                limboBatches = [generateDebugPack()]; 
+                if(limboBatches[0].length === 0) { alert("Empty set!"); resetPack(); return; }
+                
+                cardsArea.innerHTML = '';
+                limboBatches[0].forEach((card, index) => {
+                    setTimeout(() => {
+                        createCardHTML(card, cardsArea, true, 1, false, true);
+                        playSound('DEAL'); 
+                    }, index * 150);
+                });
+                setTimeout(() => { 
+                    actionBar.style.display = 'flex';
+                    revealBtn.style.display = 'block'; keepBtn.style.display = 'block'; tossBtn.style.display = 'block';
+                }, limboBatches[0].length * 150 + 500);
+            }, 400); 
+        }, 500);
+    }
+
+    // --- BATCH ACTIONS ---
+    function flipBatch(batchIdx) {
+        const grid = document.getElementById(`pack-grid-${batchIdx}`);
+        if(!grid) return;
+        const flippers = grid.querySelectorAll('.card-flipper.flipped');
+        flippers.forEach((el, index) => {
+            setTimeout(() => {
+                el.classList.remove('flipped');
+                const cardDiv = el.closest('.card');
+                const isHit = cardDiv.dataset.isHit === "true";
+                const isGodPull = cardDiv.classList.contains('god-pull-flag');
+                if(isGodPull) {
+                    cardDiv.classList.add('legendary-reveal');
+                    const rect = cardDiv.getBoundingClientRect();
+                    triggerExplosion(rect.left + rect.width/2, rect.top + rect.height/2);
+                }
+                playSound(isHit ? 'RARE' : 'FLIP');
+            }, index * 50);
+        });
+        const btn = document.getElementById(`pack-group-${batchIdx}`).querySelector('.reveal-btn');
+        if(btn) btn.style.display = 'none';
+    }
+
+    function keepBatch(batchIdx) {
+        if(!limboBatches[batchIdx]) return;
+        limboBatches[batchIdx].forEach(card => {
+            const key = card.id && card.id !== "000" ? card.id : card.name;
+            if(!userCollection[key]) userCollection[key] = { count: 0, data: card, isNew: true };
+            if(!userCollection[key].data) userCollection[key].data = card;
+            userCollection[key].count++;
+        });
+        saveCollection();
+        const group = document.getElementById(`pack-group-${batchIdx}`);
+        if(group) {
+            group.style.transform = "scale(0.5)"; 
+            group.classList.add('removing');
+            setTimeout(() => group.remove(), 500);
+        }
+        limboBatches[batchIdx] = null; 
+        checkAllProcessed();
+    }
+
+    function tossBatch(batchIdx) {
+        const group = document.getElementById(`pack-group-${batchIdx}`);
+        if(group) {
+            group.style.transform = "translateX(200px) rotate(10deg)"; 
+            group.classList.add('removing');
+            setTimeout(() => group.remove(), 500);
+        }
+        limboBatches[batchIdx] = null; 
+        checkAllProcessed();
+    }
+
+    function checkAllProcessed() {
+        const remaining = limboBatches.filter(b => b !== null);
+        if(remaining.length === 0) setTimeout(resetPack, 600);
+    }
+
+    // --- GLOBAL ACTIONS ---
+    function keepCards() {
+        limboBatches.flat().forEach(card => {
+            if(!card) return;
+            const key = card.id && card.id !== "000" ? card.id : card.name;
+            if(!userCollection[key]) userCollection[key] = { count: 0, data: card, isNew: true };
+            if(!userCollection[key].data) userCollection[key].data = card;
+            userCollection[key].count++;
+        });
+        saveCollection();
+        limboBatches = []; 
+        resetPack();
+    }
+
+    function tossCards() { limboBatches = []; resetPack(); }
+
+    function flipAll() {
+        const flippers = document.querySelectorAll('.cards-area .card-flipper.flipped');
+        flippers.forEach((el, index) => {
+            setTimeout(() => {
+                el.classList.remove('flipped');
+                const cardDiv = el.closest('.card');
+                const isHit = cardDiv.dataset.isHit === "true";
+                const isGodPull = cardDiv.classList.contains('god-pull-flag');
+                if(isGodPull) {
+                    cardDiv.classList.add('legendary-reveal');
+                    const rect = cardDiv.getBoundingClientRect();
+                    triggerExplosion(rect.left + rect.width/2, rect.top + rect.height/2);
+                }
+                playSound(isHit ? 'RARE' : 'FLIP');
+            }, index * 50); 
+        });
+        revealBtn.style.display = 'none';
+    }
+
+    function resetPack() {
+        cardsArea.innerHTML = '';
+        packWrapper.style.display = 'block'; packContainer.style.display = 'block'; 
+        packContainer.classList.remove('shake-anim'); packTop.classList.remove('ripped-top'); packBottom.classList.remove('ripped-bottom'); flashOverlay.classList.remove('flash-anim');
+        actionBar.style.display = 'none';
+        hideTooltip(); 
+        playSound('DROP');
+        document.getElementById('pack').classList.remove('pack-enter'); void document.getElementById('pack').offsetWidth; document.getElementById('pack').classList.add('pack-enter');
+        updatePackVisuals(); 
+    }
+
+    // --- 8. COLLECTION LOGIC ---
+    function saveCollection() { 
+        const minimalSave = {};
+        Object.keys(userCollection).forEach(key => {
+            if(userCollection[key] && userCollection[key].data) minimalSave[key] = { count: userCollection[key].count, isNew: userCollection[key].isNew, setID: userCollection[key].data.setID };
+        });
+        try { localStorage.setItem('optcg_collection', JSON.stringify(minimalSave)); } catch(e) { console.error("Storage full!", e); }
+    }
+    
+    function exportSave() {
+        const exportData = {};
+        Object.keys(userCollection).forEach(key => {
+            if(userCollection[key] && userCollection[key].data) exportData[key] = { count: userCollection[key].count, isNew: userCollection[key].isNew, data: userCollection[key].data };
+        });
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData));
+        const downloadAnchorNode = document.createElement('a'); const date = new Date().toISOString().split('T')[0];
+        downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "optcg_save_" + date + ".json");
+        document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
+    }
+
+    function importSave(input) {
+        const file = input.files[0]; if(!file) return;
+        if(!confirm("Loading a file will OVERWRITE your current collection. Are you sure?")) { input.value = ''; return; }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const rawSave = JSON.parse(e.target.result); userCollection = {}; 
+                Object.keys(rawSave).forEach(key => {
+                    const savedItem = rawSave[key];
+                    if (savedItem.data) {
+                        userCollection[key] = { count: savedItem.count, isNew: savedItem.isNew, data: savedItem.data };
+                        if(!userCollection[key].data.tags) userCollection[key].data.tags = analyzeTags(userCollection[key].data.name, "", userCollection[key].data.extendedData);
+                    }
+                });
+                if(Object.keys(userCollection).length > 0) saveCollection(); 
+                renderBinder(); alert("Collection imported successfully!");
+            } catch(err) { alert("Error reading file: " + err); }
+        };
+        reader.readAsText(file);
+    }
+
+    function wipeCollection() {
+        if(confirm("Are you sure? This will delete all your collected cards.")) {
+            userCollection = {};
+            saveCollection();
+            renderBinder(); 
+            collectionStats.innerText = "Total: 0";
+            binderGrid.innerHTML = '<div style="color:#888; margin-top:50px;">Collection Reset.</div>';
+        }
+    }
+
+    function toggleBinder(show) {
+        if(show) { gameView.style.display = 'none'; binderView.style.display = 'flex'; renderBinder(); } 
+        else { 
+            try { Object.values(userCollection).forEach(item => { if(item) item.isNew = false; }); saveCollection(); } catch(e) {}
+            gameView.style.display = 'flex'; binderView.style.display = 'none'; hideTooltip(); 
+        }
+    }
+
+    function renderBinder() {
+        binderGrid.innerHTML = ''; binderStats.innerHTML = '';
+        const setVal = filterSet.value; const rarVal = filterRarity.value; const searchVal = binderSearch ? binderSearch.value.toLowerCase().trim() : "";
+        const uniqueOwnedBySet = {};
+        Object.values(userCollection).forEach(item => {
+            if(!item || !item.data) return;
+            const sid = item.data.setID; const dispNum = item.data.displayNumber; 
+            if(!uniqueOwnedBySet[sid]) uniqueOwnedBySet[sid] = new Set();
+            uniqueOwnedBySet[sid].add(dispNum);
+        });
+
+        setPools.forEach(sp => {
+            if(!sp.error) {
+                const targetPrefix = sp.name.split(" ")[0].replace("-", ""); const allPools = ['common','uncommon','rare','superRare','secretRare','leader','manga','altArt','boxTopper','special','treasure','don'];
+                const strictSetNumbers = new Set();
+                allPools.forEach(pKey => {
+                    if(sp.pool[pKey]) {
+                        sp.pool[pKey].forEach(c => {
+                            if(c.setID === targetPrefix) {
+                                const numEntry = c.extendedData.find(i => i.name === "Number");
+                                if(numEntry) strictSetNumbers.add(numEntry.value);
+                            }
+                        });
+                    }
+                });
+                const total = strictSetNumbers.size;
+                const owned = uniqueOwnedBySet[targetPrefix] ? uniqueOwnedBySet[targetPrefix].size : 0;
+                if(total > 0) binderStats.innerHTML += `<div class="set-stat-pill">${sp.name.split(" ")[0]}: <span>${owned}/${total}</span></div>`;
+            }
+        });
+        if(uniqueOwnedBySet['OTHER']) binderStats.innerHTML += `<div class="set-stat-pill">OTHER: <span>${uniqueOwnedBySet['OTHER'].size}</span></div>`;
+
+        let keys = Object.keys(userCollection).filter(key => {
+            const item = userCollection[key];
+            if(!item || !item.data) return false;
+            const card = item.data;
+            if (setVal !== "ALL" && card.setID !== setVal) return false;
+            if (searchVal !== "" && !card.name.toLowerCase().includes(searchVal)) return false;
+            if (rarVal !== "ALL") {
+                const r = card.rarity.toUpperCase(); const t = card.tags || {}; 
+                if (rarVal === "MANGA") return t.isManga;
+                if (rarVal === "AA") return t.isParallel;
+                if (rarVal === "TREASURE") return t.isTreasure;
+                if (rarVal === "SPECIAL") return t.isSpecial || t.isBoxTopper;
+                if (rarVal === "DON") return card.backType === 'DON';
+                if (rarVal === "SEC" && !(r.includes("SEC") || r.includes("TR"))) return false;
+                if (rarVal === "L" && !(r.includes("LEADER") || r === "L")) return false;
+                if (rarVal === "SR" && !(r.includes("SUPER") || r === "SR")) return false;
+                if (rarVal === "R" && !(r.includes("RARE") || r === "R")) return false;
+                if (rarVal === "UC" && !(r.includes("UNCOMMON") || r === "UC")) return false;
+                if (rarVal === "C" && r !== "C" && r !== "COMMON") return false;
+            }
+            return true;
+        });
+
+        collectionStats.innerText = `Showing: ${keys.length} Cards`;
+        if(keys.length === 0) { 
+            if(searchVal !== "") binderGrid.innerHTML = `<div style="color:#888; margin-top:50px;">No cards found matching "${searchVal}"</div>`;
+            else binderGrid.innerHTML = '<div style="color:#888; margin-top:50px;">No cards found matching filters.</div>'; 
+            return; 
+        }
+
+        keys.sort((a,b) => {
+            const cardA = userCollection[a].data; const cardB = userCollection[b].data;
+            const getRank = (c) => {
+                const t = c.tags || {};
+                if(t.isManga) return 10; if(t.isTreasure) return 9.5; if(t.isSpecial || t.isSignature) return 9; if(t.isParallel) return 8; 
+                if(c.rarity.includes("SEC") || c.rarity.includes("TR")) return 6; if(c.rarity.includes("LEADER") || c.rarity === "L") return 5;
+                if(c.rarity.includes("SUPER") || c.rarity === "SR") return 4; if(c.rarity.includes("RARE") || c.rarity === "R") return 3;
+                if(c.rarity.includes("UNCOMMON") || c.rarity === "UC") return 2; return 1;
+            };
+            const rankA = getRank(cardA); const rankB = getRank(cardB);
+            if (rankA !== rankB) return rankB - rankA; 
+            if (cardA.setID < cardB.setID) return -1; if (cardA.setID > cardB.setID) return 1;
+            if (cardA.id < cardB.id) return -1; if (cardA.id > cardB.id) return 1;
+            return 0;
+        });
+
+        keys.forEach(key => {
+            const item = userCollection[key];
+            createCardHTML(item.data, binderGrid, false, item.count, item.isNew, false, true);
+        });
+    }
+
+    function triggerExplosion(x, y) {
+        const colors = ['#FFD700', '#FFA500', '#FF4500', '#FFFFFF', '#00BFFF'];
+        for (let i = 0; i < 40; i++) {
+            const p = document.createElement('div');
+            p.classList.add('particle');
+            p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            p.style.left = x + 'px'; p.style.top = y + 'px';
+            const angle = Math.random() * Math.PI * 2; const velocity = 50 + Math.random() * 150; 
+            const tx = Math.cos(angle) * velocity + 'px'; const ty = Math.sin(angle) * velocity + 'px';
+            p.style.setProperty('--tx', tx); p.style.setProperty('--ty', ty);
+            document.body.appendChild(p); setTimeout(() => p.remove(), 1000);
+        }
+    }
+
+    function createCardHTML(card, container, isPackOpening, quantity = 1, isNew = false, startFlipped = false, isBinder = false) {
+        if(!card) return; 
+        const cardDiv = document.createElement('div');
+        let rarityClass = 'rarity-C'; let glareClass = 'glare-basic'; const r = card.rarity.toUpperCase();
+        let isHit = false; let isGodPull = false; 
+
+        if (r === 'UC' || r.includes('UNCOMMON')) { rarityClass = 'rarity-UC'; }
+        else if (r === 'SR' || r.includes('SUPER')) { rarityClass = 'rarity-SR'; glareClass = 'glare-super'; isHit = true; }
+        else if (r === 'SEC' || r.includes('SECRET')) { rarityClass = 'rarity-SEC'; glareClass = 'glare-secret'; isHit = true; }
+        else if (r === 'L' || r.includes('LEADER')) { rarityClass = 'rarity-L'; glareClass = 'glare-secret'; isHit = true; }
+        else if (r === 'R' || r.includes('RARE')) { rarityClass = 'rarity-R'; glareClass = 'glare-rare'; }
+        else if (r === 'TR' || r === 'SPECIAL') { rarityClass = 'rarity-SEC'; glareClass = 'glare-secret'; isHit = true; }
+
+        if (card.tags) {
+            if (card.tags.isManga) { rarityClass = 'rarity-SEC'; isGodPull = true; isHit = true; }
+            if (card.tags.isTreasure) { rarityClass = 'rarity-SEC'; isGodPull = true; isHit = true; }
+            if (card.tags.isSpecial) { isGodPull = true; isHit = true; }
+            if (card.tags.isSignature) { isGodPull = true; isHit = true; }
+            if (card.tags.isParallel) { isGodPull = true; isHit = true; } 
+        }
+
+        cardDiv.className = `card ${rarityClass}`;
+        if(isGodPull) cardDiv.classList.add('god-pull-flag'); 
+        cardDiv.dataset.isHit = isHit; 
+        cardDiv.style.display = 'block';
+        
+        const tilter = document.createElement('div'); tilter.className = 'card-tilter';
+        const flipper = document.createElement('div'); flipper.className = 'card-flipper';
+        if (startFlipped) flipper.classList.add('flipped');
+        if(isPackOpening) { cardDiv.style.animation = 'popIn 0.5s ease-out forwards'; }
+
+        let backType = card.backType;
+        if (!backType || backType === "GENERIC" || backType === "undefined") { backType = determineBackType(card.rarity, card.extendedData); }
+        let backImg = CARD_BACKS.GENERIC;
+        if(backType === 'LEADER') backImg = CARD_BACKS.LEADER;
+        if(backType === 'DON') backImg = CARD_BACKS.DON;
+
+        cardDiv.onmouseenter = (e) => { playSound('HOVER'); cardDiv.style.animation = 'none'; activeCardRect = cardDiv.getBoundingClientRect(); tilter.style.transition = 'none'; };
+        cardDiv.onmousemove = (e) => { if(!activeCardRect) return; tiltCard(e, tilter, flipper); if(globalTooltip.style.display === 'block') moveTooltip(e); };
+        cardDiv.onmouseleave = () => { hideTooltip(); resetCard(tilter); activeCardRect = null; };
+
+        cardDiv.onclick = (e) => {
+            if (isBinder) { if(globalTooltip.style.display === 'block') hideTooltip(); else { showTooltip(card); moveTooltip(e); } return; }
+            if(flipper.classList.contains('flipped')) {
+                flipper.classList.remove('flipped');
+                if(isGodPull) { playSound('RARE'); cardDiv.classList.add('legendary-reveal'); triggerExplosion(e.clientX, e.clientY); } 
+                else if(isHit) { playSound('RARE'); } else { playSound('FLIP'); }
+                if(globalTooltip.style.display === 'block') hideTooltip(); else { showTooltip(card); moveTooltip(e); }
+                if(document.querySelectorAll('.card-flipper.flipped').length === 0) { 
+                    revealBtn.style.display = 'none'; 
+                    const localBtn = cardDiv.closest('.pack-group')?.querySelector('.reveal-btn');
+                    if(localBtn) localBtn.style.display = 'none';
+                }
+            } else {
+                flipper.classList.add('flipped');
+                cardDiv.classList.remove('legendary-reveal'); playSound('FLIP'); hideTooltip(); 
+            }
+        };
+
+        const badgeText = card.displayNumber || card.id;
+        let badgeHTML = `<div class="card-rarity-badge">${badgeText}</div>`;
+        if(quantity > 1) badgeHTML += `<div class="count-badge">x${quantity}</div>`;
+        if(isNew) badgeHTML += `<div class="new-badge">NEW!</div>`;
+
+        const front = document.createElement('div'); front.className = 'card-front';
+        front.innerHTML = `<div class="card-glare ${glareClass}"></div><img src="${card.image}" onerror="this.src='https://placehold.co/200x280?text=Image+Blocked'" style="width:100%; height:100%; object-fit:cover;">${badgeHTML}`;
+        const back = document.createElement('div'); back.className = 'card-back';
+        back.style.backgroundImage = `url('${backImg}')`;
+
+        flipper.appendChild(front); flipper.appendChild(back); tilter.appendChild(flipper); cardDiv.appendChild(tilter); container.appendChild(cardDiv);
+    }
+
+    function showTooltip(card) {
+        globalTooltip.innerHTML = `<div class="tooltip-header">${card.name}</div>`;
+        let descText = null;
+        if (card.extendedData && card.extendedData.length > 0) {
+            card.extendedData.forEach(item => {
+                if (item.name === "Number") return; if (item.name === "Description" || item.name === "Effect") { descText = item.value; } else { const label = item.displayName || item.name; globalTooltip.innerHTML += `<div class="tooltip-row"><span class="tooltip-label">${label}:</span><span class="tooltip-val">${item.value}</span></div>`; }
+            });
+            if (descText) globalTooltip.innerHTML += `<div class="tooltip-desc-container"><span class="tooltip-desc-title">Description</span><span class="tooltip-desc-text">${descText}</span></div>`;
+        } else { globalTooltip.innerHTML += `<div>No Details Found</div>`; }
+        globalTooltip.style.display = 'block';
+    }
+
+    function moveTooltip(e) { globalTooltip.style.left = (e.clientX + 15) + 'px'; globalTooltip.style.top = (e.clientY + 15) + 'px'; }
+    function hideTooltip() { globalTooltip.style.display = 'none'; }
+    function tiltCard(e, tilterDiv, flipperDiv) {
+        const x = e.clientX - activeCardRect.left; const y = e.clientY - activeCardRect.top;
+        const xPercent = (x / activeCardRect.width) * 100; const yPercent = (y / activeCardRect.height) * 100;
+        tilterDiv.style.setProperty('--pointer-x', xPercent); tilterDiv.style.setProperty('--pointer-y', yPercent);
+        const centerX = activeCardRect.width / 2; const centerY = activeCardRect.height / 2;
+        const rotateX = ((y - centerY) / centerY) * -20; const rotateY = ((x - centerX) / centerX) * 20;
+        tilterDiv.style.transform = `scale(1.1) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    }
+    function resetCard(tilterDiv) { tilterDiv.style.transition = 'transform 0.5s ease-out'; tilterDiv.style.transform = `scale(1) rotateX(0deg) rotateY(0deg)`; }
+
+    init();
+</script>
+</body>
+</html>

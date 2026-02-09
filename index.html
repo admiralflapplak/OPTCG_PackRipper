@@ -3,8 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>One Piece TCG Pack Ripper v5.2</title>
+    <title>One Piece TCG Pack Ripper v56</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+    <script>
+        // Initialize the Drag-Drop Polyfill
+        // This makes your touch events act like mouse drags!
+        MobileDragDrop.polyfill({
+            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
+        });
+
+        // Fix for iOS scrolling while dragging
+        window.addEventListener( 'touchmove', function() {}, {passive: false});
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
 <style>
     /* =========================================
        1. IMPORTS & FONTS
@@ -576,6 +588,64 @@
         .cards-area { justify-content: center; }
         .card, .card-inner, .card-front, .card-back, .card-glare { border-radius: 25px !important; }
     }
+    /* --- MOBILE BINDER FIXES --- */
+    @media (max-width: 768px) {
+        
+        /* 1. Stack the Layout (Vertical Split) */
+        .binder-wrapper {
+            flex-direction: column;
+            gap: 0; /* Remove gap to maximize space */
+        }
+
+        /* 2. Binder Area (Top 60%) */
+        .binder-main-area {
+            width: 100%;
+            height: 60%; 
+            padding: 10px; /* Less padding */
+            border-bottom: 2px solid #d4af37;
+        }
+
+        /* 3. Deck Dock (Bottom 40%) */
+        .deck-dock {
+            width: 100%;
+            height: 40%;
+            margin-right: 0;
+            border-left: none;
+            border-top: 4px solid #d4af37;
+            border-radius: 20px 20px 0 0; /* Round top corners only */
+            background: #151515;
+            z-index: 50;
+        }
+
+        /* 4. Controls Cleanup */
+        .binder-header {
+            padding: 10px;
+            gap: 10px;
+        }
+        
+        .binder-top-row {
+            flex-direction: column; /* Stack Stats & Buttons */
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .data-controls {
+            display: flex;
+            gap: 5px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* 5. Smaller Text for Mobile */
+        .collection-stats { font-size: 1rem; }
+        .dock-title { font-size: 1.1rem; margin-bottom: 5px; }
+        
+        /* 6. Adjust Grid for Tiny Screens */
+        :root {
+            --card-width: 90px;  /* Much smaller cards so you see more */
+            --card-height: 126px; 
+        }
+    }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 </style>
 </head>
@@ -871,19 +941,24 @@
             if (rObj && rObj.value) rVal = rObj.value.toLowerCase();
         }
 
-        // NEW: Check specifically for Gold DONs
+        // Check specifically for Gold DONs
         const isGoldDon = (n.includes("don") && n.includes("gold")) || 
                           (n.includes("don") && (rVal.includes("special") || rVal.includes("sp")));
 
         const tags = {
             isManga: n.includes("manga") || rVal.includes("manga"),
-            isParallel: n.includes("parallel") || n.includes("(aa)") || n.includes("alternate art") || n.includes("alt art") || rVal.includes("parallel") || rVal.includes("aa"),
+            
+            // UPDATED: Added "full art"
+            isParallel: n.includes("parallel") || n.includes("(aa)") || n.includes("alternate art") || n.includes("alt art") || n.includes("full art") || rVal.includes("parallel") || rVal.includes("aa"),
+            
             isBoxTopper: n.includes("box topper") || n.includes("promotion pack"),
-            isSpecial: n.includes("anniversary") || n.includes("special") || n.includes("event") || n.includes("(sp)") || rVal.includes("sp"),
+            
+            // UPDATED: Added "jolly roger"
+            isSpecial: n.includes("anniversary") || n.includes("special") || n.includes("event") || n.includes("(sp)") || n.includes("jolly roger foil") || rVal.includes("sp"),
+            
             isSignature: n.includes("signature") || n.includes("stamped"),
             isTreasure: rVal.includes("tr"),
             
-            // Add our new tag
             isGoldDon: isGoldDon
         };
         return tags;
@@ -2079,8 +2154,8 @@
         
         // 1. Add Leader
         if (deck.leader) {
-            // Format: "1x OP01-001" (Leader usually just needs ID, but standard format helps)
-            exportText += `1x ${deck.leader.displayNumber || deck.leader.id}\n`;
+            // Format: "1xOP01-001" (Leader usually just needs ID, but standard format helps)
+            exportText += `1x${deck.leader.displayNumber || deck.leader.id}\n`;
         }
         
         // 2. Add Cards
@@ -2100,7 +2175,7 @@
                 }
             }
             
-            exportText += `${count}x ${dispNum}\n`;
+            exportText += `${count}x${dispNum}\n`;
         });
 
         // 3. Copy to Clipboard
